@@ -1,0 +1,11 @@
+com/hidechat/integration/package-info.class
+com/hidechat/modules/auth/package-info.class
+com/hidechat/modules/contact/package-info.class
+com/hidechat/support/package-info.class
+com/hidechat/modules/user/package-info.class
+com/hidechat/modules/auth/AuthServiceImplTest.class
+com/hidechat/modules/auth/AuthControllerTest.class
+com/hidechat/modules/file/package-info.class
+com/hidechat/HideChatApplicationTests.class
+com/hidechat/modules/conversation/package-info.class
+com/hidechat/modules/message/package-info.class

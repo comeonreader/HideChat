@@ -1,0 +1,14 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/hidechat_dev?currentSchema=hidechat
+    username: hidechat_dev
+    password: hidechat_dev
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 0
+
+logging:
+  level:
+    com.hidechat: INFO
