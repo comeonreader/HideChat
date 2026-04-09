@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>聊天界面</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="chat-page">
+  <div class="chat-shell">
+    <aside class="sidebar">
+      <div class="sidebar-inner">
+        <div class="wechat-header">
+          <div class="topbar" style="margin-bottom:12px;">
+            <div class="title" style="font-size:22px;">聊天</div>
+            <a class="tag" href="add-friend.html">添加好友</a>
+          </div>
+          <div class="search-box">
+            <span>🔍</span>
+            <input placeholder="搜索聊天记录" />
+          </div>
+        </div>
+
+        <ul class="list">
+          <li class="chat-item active">
+            <div class="avatar">林</div>
+            <div class="chat-main">
+              <div class="chat-row"><div class="name">林夏</div><div class="time">09:42</div></div>
+              <div class="preview">[文件] 项目草稿-v3.pdf</div>
+            </div>
+          </li>
+          <li class="chat-item">
+            <div class="avatar" style="background:linear-gradient(135deg,#f9a8d4,#a78bfa);">周</div>
+            <div class="chat-main">
+              <div class="chat-row"><div class="name">周言</div><div class="time">昨天</div></div>
+              <div class="preview">我晚点把图片发你，记得看一下。</div>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </aside>
+
+    <main class="conv-area">
+      <div class="panel-header">
+        <div>
+          <div class="name" style="font-size:18px;">林夏</div>
+          <div class="muted">工作日 09:00 - 22:00 活跃</div>
+        </div>
+        <div class="tag">支持发送文件</div>
+      </div>
+
+      <div class="messages">
+        <div class="day-divider">今天 09:18</div>
+
+        <div class="msg other">
+          <div class="avatar small">林</div>
+          <div class="bubble">我把你要的版本整理好了，先发你一个 PDF。</div>
+        </div>
+
+        <div class="msg other">
+          <div class="avatar small">林</div>
+          <div class="file-card">
+            <div style="font-weight:600; margin-bottom:6px;">项目草稿-v3.pdf</div>
+            <div class="preview">2.4 MB · 点击可预览或下载</div>
+          </div>
+        </div>
+
+        <div class="msg self">
+          <div class="bubble">收到，我这边先看一下，等会把修改意见发给你。</div>
+        </div>
+
+        <div class="msg other">
+          <div class="avatar small">林</div>
+          <div class="bubble">好，不着急。你看完直接在这里发我就行。</div>
+        </div>
+      </div>
+
+      <div class="input-bar">
+        <div class="toolbar">
+          <button class="icon-btn" title="表情">😊</button>
+          <button class="icon-btn" title="发送图片">🖼️</button>
+          <button class="icon-btn" title="发送文件">📎</button>
+          <button class="icon-btn" title="更多">＋</button>
+        </div>
+        <div class="composer">
+          <textarea placeholder="输入消息..."></textarea>
+          <button class="btn btn-brand send-btn">发送</button>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

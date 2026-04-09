@@ -1,0 +1,79 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: hidechat-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-hidechat_dev}
+      POSTGRES_USER: ${POSTGRES_USER:-hidechat_dev}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hidechat_dev}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hidechat_dev} -d ${POSTGRES_DB:-hidechat_dev}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: hidechat-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: hidechat/backend:local
+    container_name: hidechat-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-hidechat_dev}?currentSchema=${POSTGRES_SCHEMA:-hidechat}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-hidechat_dev}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-hidechat_dev}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_DATABASE: 0
+      HIDECHAT_SECURITY_JWT_SECRET: ${HIDECHAT_JWT_SECRET:-hidechat-dev-secret-key-hidechat-dev-secret-key-2026}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: hidechat/frontend:local
+    container_name: hidechat-frontend
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: hidechat-gateway
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - "${GATEWAY_PORT:-80}:80"
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  postgres_data:
+  redis_data:

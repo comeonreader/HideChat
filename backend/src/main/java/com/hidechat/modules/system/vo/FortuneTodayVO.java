@@ -8,5 +8,8 @@ import lombok.Setter;
 public class FortuneTodayVO {
 
     private String title;
-    private String content;
+    private String summary;
+    private String luckyColor;
+    private String luckyDirection;
+    private String advice;
 }

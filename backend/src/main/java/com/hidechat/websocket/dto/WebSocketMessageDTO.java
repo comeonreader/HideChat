@@ -1,5 +1,6 @@
 package com.hidechat.websocket.dto;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -8,6 +9,5 @@ import lombok.Setter;
 public class WebSocketMessageDTO {
 
     private String type;
-    private String conversationId;
-    private String payload;
+    private JsonNode data;
 }

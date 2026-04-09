@@ -21,4 +21,8 @@ public class WebSocketSessionRegistry {
     public void remove(String userUid) {
         sessionByUserUid.remove(userUid);
     }
+
+    public boolean contains(String userUid) {
+        return sessionByUserUid.containsKey(userUid);
+    }
 }

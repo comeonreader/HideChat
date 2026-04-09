@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>聊天列表</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="wechat-layout">
+    <aside class="sidebar">
+      <div class="sidebar-inner">
+        <div class="wechat-header">
+          <div class="topbar" style="margin-bottom:12px;">
+            <div class="title" style="font-size:22px;">聊天</div>
+            <a class="tag" href="add-friend.html">搜索 / 添加好友</a>
+          </div>
+          <div class="search-box">
+            <span>🔍</span>
+            <input placeholder="搜索" />
+          </div>
+        </div>
+
+        <ul class="list">
+          <li class="chat-item active">
+            <div class="avatar">林</div>
+            <div class="chat-main">
+              <div class="chat-row"><div class="name">林夏</div><div class="time">09:42</div></div>
+              <div class="preview">[文件消息]</div>
+            </div>
+            <span class="count">2</span>
+          </li>
+          <li class="chat-item">
+            <div class="avatar" style="background:linear-gradient(135deg,#f9a8d4,#a78bfa);">周</div>
+            <div class="chat-main">
+              <div class="chat-row"><div class="name">周言</div><div class="time">昨天</div></div>
+              <div class="preview">[文本消息]</div>
+            </div>
+          </li>
+          <li class="chat-item">
+            <div class="avatar" style="background:linear-gradient(135deg,#fb7185,#f59e0b);">M</div>
+            <div class="chat-main">
+              <div class="chat-row"><div class="name">Mia</div><div class="time">昨天</div></div>
+              <div class="preview">[文本消息]</div>
+            </div>
+          </li>
+          <li class="chat-item">
+            <div class="avatar" style="background:linear-gradient(135deg,#60a5fa,#06b6d4);">郑</div>
+            <div class="chat-main">
+              <div class="chat-row"><div class="name">郑一</div><div class="time">周二</div></div>
+              <div class="preview">[文本消息]</div>
+            </div>
+          </li>
+        </ul>
+      </div>
+      <nav class="mobile-nav">
+        <a href="chat-list.html">💬<span>聊天</span></a>
+        <a href="add-friend.html">👤<span>好友</span></a>
+        <a href="fortune.html">✨<span>运势</span></a>
+      </nav>
+    </aside>
+
+    <main class="main-panel">
+      <div class="panel-header">
+        <div>
+          <div class="name" style="font-size:18px;">林夏</div>
+          <div class="muted">手机在线 · 2 条未读</div>
+        </div>
+        <a class="btn ghost" href="chat.html">进入聊天</a>
+      </div>
+      <div class="empty-panel">
+        <div class="empty-card">
+          <div class="empty-illustration"></div>
+          <div class="section-title">像微信一样熟悉的聊天列表</div>
+          <div class="section-text">左侧展示最近联系人与未读消息，手机端会自动切换为单列布局，更适合拇指操作。</div>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

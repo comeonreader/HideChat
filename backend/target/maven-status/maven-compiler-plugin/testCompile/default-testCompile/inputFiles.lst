@@ -1,4 +1,10 @@
 /home/reader/HideChat/backend/src/test/java/com/hidechat/HideChatApplicationTests.java
+/home/reader/HideChat/backend/src/test/java/com/hidechat/integration/AbstractIntegrationTest.java
+/home/reader/HideChat/backend/src/test/java/com/hidechat/integration/ContactIntegrationTest.java
+/home/reader/HideChat/backend/src/test/java/com/hidechat/integration/ConversationIntegrationTest.java
+/home/reader/HideChat/backend/src/test/java/com/hidechat/integration/FileUploadIntegrationTest.java
+/home/reader/HideChat/backend/src/test/java/com/hidechat/integration/IntegrationContainers.java
+/home/reader/HideChat/backend/src/test/java/com/hidechat/integration/UserProfileIntegrationTest.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/integration/package-info.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/modules/auth/AuthControllerTest.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/modules/auth/AuthServiceImplTest.java
@@ -9,9 +15,16 @@
 /home/reader/HideChat/backend/src/test/java/com/hidechat/modules/conversation/ConversationControllerTest.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/modules/conversation/ConversationServiceImplTest.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/modules/conversation/package-info.java
+/home/reader/HideChat/backend/src/test/java/com/hidechat/modules/file/FileControllerTest.java
+/home/reader/HideChat/backend/src/test/java/com/hidechat/modules/file/FileServiceImplTest.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/modules/file/package-info.java
+/home/reader/HideChat/backend/src/test/java/com/hidechat/modules/message/MessageControllerTest.java
+/home/reader/HideChat/backend/src/test/java/com/hidechat/modules/message/MessageServiceImplTest.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/modules/message/package-info.java
+/home/reader/HideChat/backend/src/test/java/com/hidechat/modules/system/SystemControllerTest.java
+/home/reader/HideChat/backend/src/test/java/com/hidechat/modules/system/SystemServiceImplTest.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/modules/user/UserControllerTest.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/modules/user/UserServiceImplTest.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/modules/user/package-info.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/support/package-info.java
+/home/reader/HideChat/backend/src/test/java/com/hidechat/websocket/ChatWebSocketHandlerTest.java

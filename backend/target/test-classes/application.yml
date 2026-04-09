@@ -1,3 +1,11 @@
 logging:
   level:
     root: WARN
+
+hidechat:
+  security:
+    jwt:
+      issuer: hidechat-test
+      secret: hidechat-test-secret-key-hidechat-test-secret-key-2026
+      access-token-expire-seconds: 7200
+      refresh-token-expire-seconds: 604800

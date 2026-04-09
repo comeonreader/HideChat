@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT_DIR"
+
+if [[ -f .openclaw.env ]]; then
+  # shellcheck disable=SC1091
+  source .openclaw.env
+else
+  # shellcheck disable=SC1091
+  source config/project.env.example
+fi
+
+mkdir -p "$STATE_DIR" "$LOG_DIR"
+
+while IFS='|' read -r PHASE_ID PHASE_NAME PROMPT_FILE VERIFY_PROFILE; do
+  [[ -z "$PHASE_ID" || "$PHASE_ID" =~ ^# ]] && continue
+  echo "\n=============================="
+  echo "执行阶段: $PHASE_ID - $PHASE_NAME"
+  echo "=============================="
+
+  bash scripts/run_phase.sh "$PHASE_ID"
+
+  echo "\n==> 开始阶段验证: $PHASE_ID"
+  if ! bash scripts/verify.sh "$VERIFY_PROFILE"; then
+    echo "\n阶段验证失败: $PHASE_ID"
+    echo "请检查日志并决定是否进入修复轮。"
+    exit 1
+  fi
+
+done < config/phases.conf
+
+echo "\n所有阶段执行完成。请检查 .openclaw/state/latest_snapshot.md 和日志目录。"

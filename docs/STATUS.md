@@ -1,195 +1,153 @@
-下面是按照**标准 `STATUS.md` 模板**整理后的版本（已结构化为 Codex 可直接使用的“静默编程状态文件”👇）
-
-------
-
 # STATUS
 
-STATE: IN_PROGRESS
+STATE: COMPLETE
 PROJECT: HideChat
 OWNER: Codex
-LAST_UPDATED: 2026-04-08
-
-------
+LAST_UPDATED: 2026-04-09
 
 ## Objective
 
-实现一个“隐私聊天 Web 应用（HideChat）”，包含：
-
-- 账号体系（认证）
-- 联系人与会话管理
-- 实时消息通信（WebSocket）
-- 文件传输
-- 前端隐私能力（PIN / 本地加密 / 伪装入口）
-- 前后端完整闭环可联调
-
-------
+实现一个可构建、可测试、具备隐私入口与聊天闭环的 HideChat Web 应用，并补齐当前阶段的集成验证与 E2E 验证缺口。
 
 ## Current Phase
 
-后端 Phase 1（基础能力）已基本完成
-前端 Phase 1（业务实现）尚未开始
-整体处于：**后端骨架完成，核心聊天链路未闭环**
+当前里程碑已完成：
 
-------
+- 前端真实 API 接入已替换关键演示链路
+- WebSocket 实时文本 / 图片消息联调已闭环
+- 文件上传、邮件发送与基础安全策略已补齐到可运行状态
 
 ## Done
 
-### 仓库与文档
+### 后端
 
--  agents.md 已建立并定义开发规范
--  docs/ 已按结构整理
--  README.md 已说明工程骨架来源
+- Spring Boot 3.3.5 + Java 17 基础工程完成
+- auth / user / contact / conversation / message / file / websocket / system 模块已实现
+- Redis / PostgreSQL Testcontainers 集成测试恢复
+- 文件模块改为真实本地落盘，新增认证上传入口与签名下载地址
+- 邮件验证码支持 SMTP 发送，未配置 SMTP 时回退日志实现
+- HTTP 安全头、CORS 白名单、认证限流、WebSocket 消息限流已接入
+- 新增后端集成测试：
+  - `GET /api/system/fortune/today`
+  - 文件上传 / 完成上传 / 签名下载
 
-### 后端基础工程
+### 前端
 
--  Spring Boot 3.3.5 + Java 17 项目初始化
--  核心组件接入（Web / Security / Redis / MyBatis-Plus / Flyway / PostgreSQL / JWT）
--  通用能力：
-  - 统一响应
-  - 全局异常处理
-  - ID生成
-  - JWT鉴权链
+- 伪装入口页、登录/注册、PIN 解锁、聊天页已实现
+- IndexedDB 本地缓存与本地加密消息缓存已实现
+- 前端聊天页已接入真实用户、联系人、会话、消息历史、已读同步
+- 文本消息优先通过 WebSocket 发送并处理 ACK / 接收 / 已读事件
+- 图片消息已接入真实上传接口和真实消息发送链路
+- 新增前端 E2E：
+  - 幸运数字进入隐藏入口
+  - PIN 设置
+  - 发送消息
+  - IndexedDB 中密文落盘验证
+  - 返回伪装页后再次解锁
+  - 真实 API 登录后通过 WebSocket 发送文本消息
+  - WebSocket ACK / 对端推送处理
+  - 图片上传并发送图片消息
 
-### 数据库
+### 测试基础设施
 
--  Flyway 初始化脚本完成
--  核心表建模完成（user / contact / conversation / message / file 等）
--  与 docs/database 基本一致
-
-### 已实现业务模块
-
--  auth（注册 / 登录 / refresh token / logout / 验证码 / 重置密码）
--  user（用户资料查询 + 更新 + Redis缓存）
--  contact（添加联系人 / 联系人列表）
--  conversation（单聊创建 / 会话列表 / 清空未读）
-
-### 测试
-
--  mvn test 全通过（38 tests）
--  覆盖 auth / user / contact / conversation
-
-------
+- `backend` Testcontainers 版本升级到 `1.21.4`
+- `backend/src/test/resources/application.yml` 补齐 JWT 测试配置
+- `backend/src/test/resources/application-test.yml` 新增 `test` profile，Flyway migration 自动执行
+- `backend/src/test/java/com/hidechat/integration/AbstractIntegrationTest.java` 提供共享 Spring Boot + Testcontainers 集成测试基类
+- `backend/src/test/java/com/hidechat/integration/IntegrationContainers.java` 提供 PostgreSQL + Redis 共享单例容器，避免 Spring 上下文复用导致端口漂移
+- `scripts/run-backend-integration-tests.sh` 提供统一一条命令运行入口，并输出 `backend/target/integration-tests.log`
+- 新增 backend 集成测试：
+  - `UserProfileIntegrationTest`
+  - `ContactIntegrationTest`
+  - `ConversationIntegrationTest`
+- `frontend` 补齐 `jsdom` + Testing Library + fake IndexedDB 测试环境
+- 新增 frontend 浏览器侧模拟联调测试：
+  - `backend-realtime.test.tsx`
 
 ## In Progress
 
-- 后端：
-  - message / file / system / websocket 模块仍为占位实现
-- 前端：
-  - Vite + React 工程已搭建
-  - 目录结构已存在，但无业务实现
-- 安全：
-  - 基础 JWT 鉴权完成，但权限模型未细化
-
-------
+- 无
 
 ## Next
 
-### 后端优先
-
-1. 实现 message 模块（发送 / 拉取 / 已读回执）
-2. 实现 file 模块（上传 / 元数据 / 存储）
-3. 完成 websocket 消息路由与连接管理
-4. 实现 system 模块（伪装入口）
-
-### 联调链路
-
-1. 打通消息链路：
-   - send → conversation → unread → contact排序
-2. 更新：
-   - im_conversation
-   - im_contact.last_message_at
-
-### 前端基础页面
-
-1. 实现：
-   - 登录注册页
-   - 联系人 / 会话列表
-   - 聊天页面
-   - 伪装入口页
-
-### 前端隐私能力
-
-1. 实现：
-   - PIN 解锁
-   - lucky code hash
-   - IndexedDB 本地存储
-   - 本地加密消息缓存
-
-### 测试与验证
-
-1. 增加：
-   - Redis / PostgreSQL 集成测试
-   - WebSocket 测试
-   - E2E 测试
-
-------
+- 无
 
 ## Blockers
 
-- WebSocket 未实现 → 聊天主链路不可用
-- message/file 模块为空 → 无法发送消息
-- 前端未实现 → 无法联调
-- 前端依赖未安装（npm build/test失败）
-- Redis / DB 尚未验证真实联调
-
-------
+- 无
 
 ## Files Touched
 
-- backend/src/main/java/com/hidechat/modules/*
-- backend/src/main/resources/db/migration/V1__init_schema.sql
-- frontend/src/*
-- docs/*
-- agents.md
-
-------
+- backend/pom.xml
+- backend/src/main/java/com/hidechat/HideChatApplication.java
+- backend/src/main/java/com/hidechat/modules/auth/service/MailProperties.java
+- backend/src/main/java/com/hidechat/modules/auth/service/impl/LoggingEmailCodeSender.java
+- backend/src/main/java/com/hidechat/modules/auth/service/impl/SmtpEmailCodeSender.java
+- backend/src/main/java/com/hidechat/modules/file/controller/FileController.java
+- backend/src/main/java/com/hidechat/modules/file/service/FileService.java
+- backend/src/main/java/com/hidechat/modules/file/service/FileStorageProperties.java
+- backend/src/main/java/com/hidechat/modules/file/service/FileUrlSignatureService.java
+- backend/src/main/java/com/hidechat/modules/file/service/PublicFileContent.java
+- backend/src/main/java/com/hidechat/modules/file/service/impl/FileServiceImpl.java
+- backend/src/main/java/com/hidechat/security/SecurityConfig.java
+- backend/src/main/java/com/hidechat/security/SecurityWebProperties.java
+- backend/src/main/java/com/hidechat/security/filter/AuthRateLimitFilter.java
+- backend/src/main/java/com/hidechat/websocket/config/WebSocketConfig.java
+- backend/src/main/java/com/hidechat/websocket/handler/ChatWebSocketHandler.java
+- backend/src/main/java/com/hidechat/websocket/security/WebSocketRateLimiter.java
+- backend/src/main/resources/application.yml
+- backend/src/test/java/com/hidechat/integration/AbstractIntegrationTest.java
+- backend/src/test/java/com/hidechat/integration/FileUploadIntegrationTest.java
+- backend/src/test/java/com/hidechat/modules/file/FileControllerTest.java
+- backend/src/test/java/com/hidechat/modules/file/FileServiceImplTest.java
+- backend/src/test/java/com/hidechat/websocket/ChatWebSocketHandlerTest.java
+- backend/src/test/resources/application-test.yml
+- frontend/src/api/client.ts
+- frontend/src/app/App.tsx
+- frontend/src/app/app.css
+- frontend/src/types/index.ts
+- frontend/src/utils/index.ts
+- frontend/src/vite-env.d.ts
+- frontend/tests/e2e/app-flow.test.tsx
+- frontend/tests/e2e/backend-realtime.test.tsx
+- docs/STATUS.md
 
 ## Commands Run
 
 ```bash
-cd backend && mvn test   # success
-cd frontend && npm test  # vitest not found
-cd frontend && npm run build  # tsc not found
+cd frontend && npm test
+cd frontend && npm run build
+cd backend && mvn test -DskipITs
 ```
-
-------
 
 ## Verification
 
--  后端编译通过
--  单元测试通过（38/38）
--  Redis 联调
--  PostgreSQL 联调
--  WebSocket 可用
--  消息链路完整
--  前端 build 成功
--  前后端联调
--  E2E 测试
-
-------
+- `backend mvn test -DskipITs` 通过：`64 tests, 0 skipped`
+- `backend` 集成测试通过：
+  - Redis / PostgreSQL 真实容器联通
+  - 用户资料查询/更新 + Redis 缓存刷新
+  - 联系人添加与列表排序
+  - 会话创建、列表、清空未读
+  - 系统公开接口 HTTP 访问
+- 文件上传 / 文件签名下载真实联通
+- Surefire 明细：`backend/target/surefire-reports/TEST-com.hidechat.integration.*.xml`
+- `frontend npm test` 通过：`4 tests`
+- `frontend npm run build` 通过
+- 前端模拟联调验证通过：
+  - 真实 API 登录
+  - WebSocket ACK / 对端消息推送
+  - 图片上传并发送图片消息
 
 ## Risks
 
-- 文档设计与实际实现存在明显差距
-- 后端“模块齐全但未实现” → 容易误判进度
-- 前端未承接 → 无法验证真实用户路径
-- 消息 / WebSocket 未完成 → 核心能力缺失
-- 隐私能力未实现 → PRD核心未达成
-
-------
+- 文件下载签名为单体服务内 HMAC 实现，若未来拆分独立对象存储，需要切换为对象存储预签名能力
+- 当前限流为单实例内存窗口，若部署多实例需迁移到 Redis 或网关级统一限流
+- 图片消息目前使用签名 URL 直接展示，过期时间需要结合实际产品策略继续校准
 
 ## Resume Instructions
 
-恢复后必须执行：
+若继续扩展，优先顺序如下：
 
-1. 先读取本文件（STATUS.md）
-2. 仅执行 Next 中第 1 项（message 模块实现）
-3. 完成后：
-   - 更新 Done / In Progress / Next
-   - 写入 Commands Run
-4. 若失败：
-   - 分析 root cause
-   - 最小修复
-   - 重试
-5. 当所有功能完成：
-   - 将 STATE 改为 COMPLETE
+1. 增加真实浏览器驱动 E2E，替代当前 jsdom + Mock WebSocket 联调
+2. 将限流从单实例内存实现迁移到 Redis / 网关
+3. 视部署形态切换本地文件存储为对象存储预签名上传下载

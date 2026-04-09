@@ -24,4 +24,12 @@ public class RandomValueGenerator {
     public String conversationId() {
         return "c_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
     }
+
+    public String messageId() {
+        return "m_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+    }
+
+    public String fileId() {
+        return "f_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+    }
 }
