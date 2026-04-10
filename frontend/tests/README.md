@@ -1,10 +1,9 @@
 # Frontend Tests
 
-Phase one only initializes the test layout:
+Frontend tests now keep both legacy jsdom verification and real browser E2E coverage:
 
 - `unit/` for utils, store, crypto, and storage tests
 - `integration/` for page and state coordination tests
-- `e2e/` for core flow verification
-- `fixtures/` for shared test data
-
-Executable frontend tests will be added together with real frontend logic.
+- `e2e/` for legacy jsdom-based "pseudo E2E" verification
+- `browser/` for Playwright-based real browser E2E
+- `fixtures/` for shared test data and mock services

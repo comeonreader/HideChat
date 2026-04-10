@@ -130,6 +130,18 @@ function getStoredAuthState(): StoredAuthState | null {
   }
 }
 
+export function getPersistedAuthTokens(): AuthTokens | null {
+  const authState = getStoredAuthState();
+  if (!authState) {
+    return null;
+  }
+  return {
+    accessToken: authState.accessToken,
+    refreshToken: authState.refreshToken,
+    expiresIn: 0
+  };
+}
+
 function saveStoredAuthState(tokens: AuthTokens): void {
   window.localStorage.setItem(
     AUTH_STORAGE_KEY,
@@ -290,7 +302,7 @@ export async function verifyLuckyNumber(luckyNumber: string): Promise<LuckyNumbe
   });
 }
 
-export async function sendEmailCode(email: string, bizType: "register" | "login"): Promise<void> {
+export async function sendEmailCode(email: string, bizType: "register" | "login" | "reset_password"): Promise<void> {
   await requestJson<void>("/auth/email/send-code", {
     method: "POST",
     body: JSON.stringify({ email, bizType })
@@ -323,6 +335,45 @@ export async function loginByPassword(input: {
     tokens,
     user: mapUserInfoToLocalUser(token.userInfo, input.email)
   };
+}
+
+export async function loginByEmailCode(input: {
+  email: string;
+  emailCode: string;
+}): Promise<{ tokens: AuthTokens; user: LocalUser }> {
+  const token = await requestJson<AuthTokenResponse>("/auth/email/code-login", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+  const tokens = mapTokenResponse(token);
+  saveStoredAuthState(tokens);
+  return {
+    tokens,
+    user: mapUserInfoToLocalUser(token.userInfo, input.email)
+  };
+}
+
+export async function resetPassword(input: {
+  email: string;
+  emailCode: string;
+  newPassword: string;
+}): Promise<void> {
+  await requestJson<void>("/auth/email/reset-password", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export async function logout(refreshToken: string): Promise<void> {
+  await requestJson<void>(
+    "/auth/logout",
+    {
+      method: "POST",
+      body: JSON.stringify({ refreshToken })
+    },
+    true
+  );
+  clearStoredAuthState();
 }
 
 export async function fetchCurrentUser(email?: string): Promise<LocalUser> {

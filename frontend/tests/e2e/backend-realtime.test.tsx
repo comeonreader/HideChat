@@ -225,9 +225,9 @@ describe("hidechat backend realtime flow", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await screen.findByRole("button", { name: "进入" });
+    await screen.findByRole("button", { name: "查看彩蛋" });
     await user.type(screen.getByLabelText("请输入今日幸运数字"), "2468");
-    await user.click(screen.getByRole("button", { name: "进入" }));
+    await user.click(screen.getByRole("button", { name: "查看彩蛋" }));
     await screen.findByRole("button", { name: "使用当前信息进入" });
     await user.click(screen.getByRole("button", { name: "使用当前信息进入" }));
     await user.type(screen.getByLabelText("PIN 解锁"), "1357");

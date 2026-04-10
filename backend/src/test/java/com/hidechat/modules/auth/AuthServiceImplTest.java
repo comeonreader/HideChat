@@ -156,6 +156,71 @@ class AuthServiceImplTest {
     }
 
     @Test
+    void shouldRejectRegisterWithWrongEmailCode() {
+        EmailRegisterRequest request = new EmailRegisterRequest();
+        request.setEmail("alice@example.com");
+        request.setPassword("Abcd1234");
+        request.setEmailCode("999999");
+        request.setNickname("Alice");
+
+        ImEmailCodeEntity emailCode = buildEmailCode(AuthConstants.BIZ_TYPE_REGISTER, "123456");
+
+        when(userAuthMapper.selectOne(any())).thenReturn(null);
+        when(emailCodeMapper.selectOne(any())).thenReturn(emailCode);
+
+        BusinessException exception = assertThrows(BusinessException.class, () -> authService.registerByEmail(request));
+
+        assertEquals(410104, exception.getCode());
+        verify(userMapper, never()).insert(any(ImUserEntity.class));
+        verify(userAuthMapper, never()).insert(any(ImUserAuthEntity.class));
+        verify(emailCodeMapper, never()).updateById(any(ImEmailCodeEntity.class));
+    }
+
+    @Test
+    void shouldRejectRegisterWithExpiredEmailCode() {
+        EmailRegisterRequest request = new EmailRegisterRequest();
+        request.setEmail("alice@example.com");
+        request.setPassword("Abcd1234");
+        request.setEmailCode("123456");
+        request.setNickname("Alice");
+
+        ImEmailCodeEntity emailCode = buildEmailCode(AuthConstants.BIZ_TYPE_REGISTER, "123456");
+        emailCode.setExpireAt(LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC).minusMinutes(1));
+
+        when(userAuthMapper.selectOne(any())).thenReturn(null);
+        when(emailCodeMapper.selectOne(any())).thenReturn(emailCode);
+
+        BusinessException exception = assertThrows(BusinessException.class, () -> authService.registerByEmail(request));
+
+        assertEquals(410105, exception.getCode());
+        verify(userMapper, never()).insert(any(ImUserEntity.class));
+        verify(userAuthMapper, never()).insert(any(ImUserAuthEntity.class));
+        verify(emailCodeMapper, never()).updateById(any(ImEmailCodeEntity.class));
+    }
+
+    @Test
+    void shouldRejectRegisterWithUsedEmailCode() {
+        EmailRegisterRequest request = new EmailRegisterRequest();
+        request.setEmail("alice@example.com");
+        request.setPassword("Abcd1234");
+        request.setEmailCode("123456");
+        request.setNickname("Alice");
+
+        ImEmailCodeEntity emailCode = buildEmailCode(AuthConstants.BIZ_TYPE_REGISTER, "123456");
+        emailCode.setUsed(Boolean.TRUE);
+
+        when(userAuthMapper.selectOne(any())).thenReturn(null);
+        when(emailCodeMapper.selectOne(any())).thenReturn(emailCode);
+
+        BusinessException exception = assertThrows(BusinessException.class, () -> authService.registerByEmail(request));
+
+        assertEquals(410106, exception.getCode());
+        verify(userMapper, never()).insert(any(ImUserEntity.class));
+        verify(userAuthMapper, never()).insert(any(ImUserAuthEntity.class));
+        verify(emailCodeMapper, never()).updateById(any(ImEmailCodeEntity.class));
+    }
+
+    @Test
     void shouldLoginByPasswordSuccessfully() {
         EmailPasswordLoginRequest request = new EmailPasswordLoginRequest();
         request.setEmail("alice@example.com");

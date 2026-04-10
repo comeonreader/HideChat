@@ -8,6 +8,9 @@ public class MailProperties {
     private boolean enabled;
     private String fromAddress = "noreply@hidechat.local";
     private String fromName = "HideChat";
+    private boolean requireAuth;
+    private boolean starttlsEnabled;
+    private boolean sslEnabled;
 
     public boolean isEnabled() {
         return enabled;
@@ -31,5 +34,29 @@ public class MailProperties {
 
     public void setFromName(String fromName) {
         this.fromName = fromName;
+    }
+
+    public boolean isRequireAuth() {
+        return requireAuth;
+    }
+
+    public void setRequireAuth(boolean requireAuth) {
+        this.requireAuth = requireAuth;
+    }
+
+    public boolean isStarttlsEnabled() {
+        return starttlsEnabled;
+    }
+
+    public void setStarttlsEnabled(boolean starttlsEnabled) {
+        this.starttlsEnabled = starttlsEnabled;
+    }
+
+    public boolean isSslEnabled() {
+        return sslEnabled;
+    }
+
+    public void setSslEnabled(boolean sslEnabled) {
+        this.sslEnabled = sslEnabled;
     }
 }

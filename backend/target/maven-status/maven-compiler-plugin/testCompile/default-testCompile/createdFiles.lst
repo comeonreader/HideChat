@@ -10,11 +10,14 @@ com/hidechat/modules/file/package-info.class
 com/hidechat/modules/conversation/package-info.class
 com/hidechat/websocket/ChatWebSocketHandlerTest.class
 com/hidechat/modules/file/FileServiceImplTest.class
+com/hidechat/integration/MessageSecurityIntegrationTest.class
 com/hidechat/integration/UserProfileIntegrationTest.class
+com/hidechat/modules/auth/SmtpEmailCodeSenderTest.class
 com/hidechat/integration/package-info.class
 com/hidechat/support/package-info.class
 com/hidechat/modules/message/MessageControllerTest.class
 com/hidechat/modules/auth/AuthServiceImplTest.class
 com/hidechat/modules/auth/AuthControllerTest.class
+com/hidechat/integration/SystemDisguiseIntegrationTest.class
 com/hidechat/HideChatApplicationTests.class
 com/hidechat/modules/message/package-info.class

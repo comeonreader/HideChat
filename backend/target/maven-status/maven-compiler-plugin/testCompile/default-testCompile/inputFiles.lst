@@ -4,10 +4,13 @@
 /home/reader/HideChat/backend/src/test/java/com/hidechat/integration/ConversationIntegrationTest.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/integration/FileUploadIntegrationTest.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/integration/IntegrationContainers.java
+/home/reader/HideChat/backend/src/test/java/com/hidechat/integration/MessageSecurityIntegrationTest.java
+/home/reader/HideChat/backend/src/test/java/com/hidechat/integration/SystemDisguiseIntegrationTest.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/integration/UserProfileIntegrationTest.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/integration/package-info.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/modules/auth/AuthControllerTest.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/modules/auth/AuthServiceImplTest.java
+/home/reader/HideChat/backend/src/test/java/com/hidechat/modules/auth/SmtpEmailCodeSenderTest.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/modules/auth/package-info.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/modules/contact/ContactControllerTest.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/modules/contact/ContactServiceImplTest.java

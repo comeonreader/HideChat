@@ -1,165 +1,111 @@
 # STATUS
 
-STATE: COMPLETE
 PROJECT: HideChat
-OWNER: Codex
 LAST_UPDATED: 2026-04-10
+STATE: ACTIVE_DEVELOPMENT
 
-## 更新记录
-- 2026-04-10: 完善邮箱验证码发送功能，添加 MailPit 测试邮件服务
+## 状态说明
 
-## Objective
+当前仓库不应标记为 `COMPLETE`。
 
-实现一个可构建、可测试、具备隐私入口与聊天闭环的 HideChat Web 应用，并补齐当前阶段的集成验证与 E2E 验证缺口。
+依据 2026-04-10 当天在当前工作区实际执行的命令，项目已具备可运行的前后端主链路与一定测试覆盖，但仍存在验收缺口、伪装安全缺口，以及“真实浏览器 + 真实后端”级别端到端验证缺口。
 
-## Current Phase
+## 当前验证结果
 
-当前里程碑已完成：
+仅记录本次实际执行且成功的结果：
 
-- 前端真实 API 接入已替换关键演示链路
-- WebSocket 实时文本 / 图片消息联调已闭环
-- 文件上传、邮件发送与基础安全策略已补齐到可运行状态
+- `cd backend && mvn test`
+  - 结果：`101 tests, 0 failures, 0 errors, 0 skipped`
+- `cd frontend && npm test`
+  - 结果：`7 files passed, 35 tests passed`
+- `cd frontend && npm run build`
+  - 结果：通过
+- `cd frontend && npm run test:e2e`
+  - 结果：`3 passed`
+  - 说明：Playwright 用例运行在真实浏览器中，但依赖 `frontend/tests/fixtures/e2e/mock-backend.mjs`，不属于真实后端全链路 E2E
 
-## Done
+## 已完成
 
 ### 后端
 
-- Spring Boot 3.3.5 + Java 17 基础工程完成
-- auth / user / contact / conversation / message / file / websocket / system 模块已实现
-- Redis / PostgreSQL Testcontainers 集成测试恢复
-- 文件模块改为真实本地落盘，新增认证上传入口与签名下载地址
-- 邮件验证码支持 SMTP 发送，默认集成 MailPit 测试邮件服务
-- 开发环境默认启用邮件发送功能
-- 改进日志发送器，提供更友好的开发提示
-- HTTP 安全头、CORS 白名单、认证限流、WebSocket 消息限流已接入
-- 新增后端集成测试：
-  - `GET /api/system/fortune/today`
-  - 文件上传 / 完成上传 / 签名下载
+- Spring Boot 3.3.5 + Java 17 + MyBatis-Plus + Flyway 基础工程已建立
+- 已有模块：`auth`、`user`、`contact`、`conversation`、`message`、`file`、`system`、`websocket`
+- 邮箱注册、密码登录、邮箱验证码登录、重置密码、刷新 token、退出登录接口已落地
+- 联系人、单聊会话、消息历史、已读、文件上传签名/完成上传、WebSocket 消息通道已落地
+- 伪装入口相关公开接口已落地：今日运势、伪装配置、幸运数字校验
+- 后端测试当前可执行并通过，包括 controller、service、websocket、integration
 
 ### 前端
 
-- 伪装入口页、登录/注册、PIN 解锁、聊天页已实现
-- IndexedDB 本地缓存与本地加密消息缓存已实现
-- 前端聊天页已接入真实用户、联系人、会话、消息历史、已读同步
-- 文本消息优先通过 WebSocket 发送并处理 ACK / 接收 / 已读事件
-- 图片消息已接入真实上传接口和真实消息发送链路
-- 新增前端 E2E：
-  - 幸运数字进入隐藏入口
-  - PIN 设置
-  - 发送消息
-  - IndexedDB 中密文落盘验证
-  - 返回伪装页后再次解锁
-  - 真实 API 登录后通过 WebSocket 发送文本消息
-  - WebSocket ACK / 对端推送处理
-  - 图片上传并发送图片消息
-- 更新邮箱验证码发送提示，引导用户查看测试邮件服务
+- 已有页面链路：伪装入口、认证页、PIN 设置/解锁、聊天页
+- 前端已接入真实 HTTP API 与 WebSocket
+- 已实现邮箱注册、密码登录、验证码登录、重置密码、退出登录 UI 流程
+- 已实现联系人搜索/添加、单聊会话列表、消息历史加载、文本消息发送、图片/文件发送
+- 已实现本地 PIN、自动锁定、重新解锁、本地加密消息缓存
+- 前端单测/伪 E2E/浏览器自动化测试当前可执行
 
-### 测试基础设施
+## 部分完成
 
-- `backend` Testcontainers 版本升级到 `1.21.4`
-- `backend/src/test/resources/application.yml` 补齐 JWT 测试配置
-- `backend/src/test/resources/application-test.yml` 新增 `test` profile，Flyway migration 自动执行
-- `backend/src/test/java/com/hidechat/integration/AbstractIntegrationTest.java` 提供共享 Spring Boot + Testcontainers 集成测试基类
-- `backend/src/test/java/com/hidechat/integration/IntegrationContainers.java` 提供 PostgreSQL + Redis 共享单例容器，避免 Spring 上下文复用导致端口漂移
-- `scripts/run-backend-integration-tests.sh` 提供统一一条命令运行入口，并输出 `backend/target/integration-tests.log`
-- 新增 backend 集成测试：
-  - `UserProfileIntegrationTest`
-  - `ContactIntegrationTest`
-  - `ConversationIntegrationTest`
-- `frontend` 补齐 `jsdom` + Testing Library + fake IndexedDB 测试环境
-- 新增 frontend 浏览器侧模拟联调测试：
-  - `backend-realtime.test.tsx`
+- auth 闭环
+  - 后端接口和前端页面已具备主要能力
+  - 但当前缺少“真实浏览器 + 真实后端 + 真实邮件通道”级别的完整验收记录
+- 伪装入口
+  - 已有运势页与幸运数字入口
+  - 但伪装安全性仍偏弱，距离“低可识别、低暴露”的验收目标还有差距
+- E2E 自动化
+  - 已有 `vitest` 的前端伪 E2E 和 Playwright 浏览器测试
+  - 但 Playwright 当前接的是 mock backend，不是真实后端全链路
+- 工程结构
+  - 主目录基本成形
+  - 但前端仍以 `App.tsx` 承担较多页面编排与状态职责，离更清晰的页面/状态/服务拆分还有距离
 
-## In Progress
+## 未完成
 
-- 无
+- 真实后端驱动的前端端到端验收套件
+- 针对邮件验证码、文件上传、WebSocket 实时链路的跨前后端统一 E2E
+- 更强的伪装安全策略与对应验证
+- 更系统化的工程化收口文档，包括当前验收矩阵与环境说明
 
-## Next
+## 风险项
 
-- 无
+- 伪装安全风险
+  - 基于当前前端实现推断，伪装入口仍包含较明显的“隐藏入口验证”语义与固定交互模式，抗旁观和抗猜测能力有限
+- E2E 结论风险
+  - 浏览器自动化虽已落地，但当前依赖 mock backend，不能等价替代真实部署链路验收
+- 工程结构风险
+  - 前端主流程集中在 `frontend/src/app/App.tsx`，后续继续堆叠功能时可维护性风险较高
+- 部署形态风险
+  - 当前文件能力以本地存储/签名 URL 为主，若切换对象存储或多实例部署，仍需补配套方案
+- 限流实现风险
+  - 当前限流主要偏单实例内存方案，多实例场景下仍需迁移或上移到统一基础设施
 
-## Blockers
+## 当前验收缺口
 
-- 无
+### 伪装安全
 
-## Files Touched
+- 伪装入口已可用，但尚不能证明其具备足够隐蔽性
+- 当前实现更接近“功能入口伪装”，不是经过专项验证的“安全伪装”
 
-- backend/pom.xml
-- backend/src/main/java/com/hidechat/HideChatApplication.java
-- backend/src/main/java/com/hidechat/modules/auth/service/MailProperties.java
-- backend/src/main/java/com/hidechat/modules/auth/service/impl/LoggingEmailCodeSender.java
-- backend/src/main/java/com/hidechat/modules/auth/service/impl/SmtpEmailCodeSender.java
-- backend/src/main/java/com/hidechat/modules/file/controller/FileController.java
-- backend/src/main/java/com/hidechat/modules/file/service/FileService.java
-- backend/src/main/java/com/hidechat/modules/file/service/FileStorageProperties.java
-- backend/src/main/java/com/hidechat/modules/file/service/FileUrlSignatureService.java
-- backend/src/main/java/com/hidechat/modules/file/service/PublicFileContent.java
-- backend/src/main/java/com/hidechat/modules/file/service/impl/FileServiceImpl.java
-- backend/src/main/java/com/hidechat/security/SecurityConfig.java
-- backend/src/main/java/com/hidechat/security/SecurityWebProperties.java
-- backend/src/main/java/com/hidechat/security/filter/AuthRateLimitFilter.java
-- backend/src/main/java/com/hidechat/websocket/config/WebSocketConfig.java
-- backend/src/main/java/com/hidechat/websocket/handler/ChatWebSocketHandler.java
-- backend/src/main/java/com/hidechat/websocket/security/WebSocketRateLimiter.java
-- backend/src/main/resources/application.yml
-- backend/src/test/java/com/hidechat/integration/AbstractIntegrationTest.java
-- backend/src/test/java/com/hidechat/integration/FileUploadIntegrationTest.java
-- backend/src/test/java/com/hidechat/modules/file/FileControllerTest.java
-- backend/src/test/java/com/hidechat/modules/file/FileServiceImplTest.java
-- backend/src/test/java/com/hidechat/websocket/ChatWebSocketHandlerTest.java
-- backend/src/test/resources/application-test.yml
-- frontend/src/api/client.ts
-- frontend/src/app/App.tsx
-- frontend/src/app/app.css
-- frontend/src/types/index.ts
-- frontend/src/utils/index.ts
-- frontend/src/vite-env.d.ts
-- frontend/tests/e2e/app-flow.test.tsx
-- frontend/tests/e2e/backend-realtime.test.tsx
-- docs/STATUS.md
-- docker-compose.yml (添加 MailPit 服务)
-- .env.example (添加邮件配置)
-- README.md (更新邮件服务说明)
-- frontend/src/app/App.tsx (更新验证码发送提示)
-- backend/src/main/resources/application.yml (默认启用邮件功能)
-- backend/src/main/java/com/hidechat/modules/auth/service/impl/LoggingEmailCodeSender.java (改进开发提示)
+### auth 闭环
 
-## Commands Run
+- 注册、登录、重置密码、退出登录在代码和前端测试中都有覆盖
+- 但缺少真实邮件收发参与的浏览器级闭环验收结果
 
-```bash
-cd frontend && npm test
-cd frontend && npm run build
-cd backend && mvn test -DskipITs
-```
+### 真 E2E
 
-## Verification
+- 当前存在两类自动化：
+  - `frontend/tests/e2e/*`：`jsdom` 环境下的前端伪 E2E
+  - `frontend/tests/browser/*`：Playwright 真实浏览器测试
+- 其中 Playwright 当前连接 mock backend，不是“前端 + 后端 + 数据库 + WebSocket + 邮件”的真实全链路 E2E
 
-- `backend mvn test -DskipITs` 通过：`64 tests, 0 skipped`
-- `backend` 集成测试通过：
-  - Redis / PostgreSQL 真实容器联通
-  - 用户资料查询/更新 + Redis 缓存刷新
-  - 联系人添加与列表排序
-  - 会话创建、列表、清空未读
-  - 系统公开接口 HTTP 访问
-- 文件上传 / 文件签名下载真实联通
-- Surefire 明细：`backend/target/surefire-reports/TEST-com.hidechat.integration.*.xml`
-- `frontend npm test` 通过：`4 tests`
-- `frontend npm run build` 通过
-- 前端模拟联调验证通过：
-  - 真实 API 登录
-  - WebSocket ACK / 对端消息推送
-  - 图片上传并发送图片消息
+### 工程结构
 
-## Risks
+- 仓库主结构与后端模块分层已基本建立
+- 前端仍存在页面编排、状态管理、实时消息处理集中在单文件的问题，后续扩展前需要继续拆分
 
-- 文件下载签名为单体服务内 HMAC 实现，若未来拆分独立对象存储，需要切换为对象存储预签名能力
-- 当前限流为单实例内存窗口，若部署多实例需迁移到 Redis 或网关级统一限流
-- 图片消息目前使用签名 URL 直接展示，过期时间需要结合实际产品策略继续校准
+## 下一阶段计划
 
-## Resume Instructions
-
-若继续扩展，优先顺序如下：
-
-1. 增加真实浏览器驱动 E2E，替代当前 jsdom + Mock WebSocket 联调
-2. 将限流从单实例内存实现迁移到 Redis / 网关
-3. 视部署形态切换本地文件存储为对象存储预签名上传下载
+- 增加“真实浏览器 + 真实后端”端到端测试，优先覆盖 disguise -> auth -> pin -> chat 主链路
+- 将 auth 闭环补成可重复执行的真实验收脚本，包含验证码邮件获取与重置密码验证
+- 继续收敛前端主流程职责，把 `App.tsx` 中的认证、会话、实时消息、锁定逻辑逐步拆分
+- 针对伪装入口补充更明确的安全目标、验收标准和测试方法，再决定是否继续增强实现

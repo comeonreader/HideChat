@@ -191,10 +191,10 @@ describe("hidechat app flow", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await screen.findByRole("button", { name: "进入" });
+    await screen.findByRole("button", { name: "查看彩蛋" });
 
     await user.type(screen.getByLabelText("请输入今日幸运数字"), "2468");
-    await user.click(screen.getByRole("button", { name: "进入" }));
+    await user.click(screen.getByRole("button", { name: "查看彩蛋" }));
 
     await screen.findByRole("button", { name: "使用当前信息进入" });
     await user.click(screen.getByRole("button", { name: "使用当前信息进入" }));
@@ -230,7 +230,7 @@ describe("hidechat app flow", () => {
 
     await user.clear(screen.getByLabelText("请输入今日幸运数字"));
     await user.type(screen.getByLabelText("请输入今日幸运数字"), "2468");
-    await user.click(screen.getByRole("button", { name: "进入" }));
+    await user.click(screen.getByRole("button", { name: "查看彩蛋" }));
 
     await screen.findByRole("button", { name: "解锁消息缓存" });
     await user.clear(screen.getByLabelText("PIN 解锁"));
@@ -239,6 +239,71 @@ describe("hidechat app flow", () => {
 
     await screen.findByText("你好，隐藏世界");
     expect(screen.getByText("PIN 校验通过，已恢复隐藏聊天界面。")).toBeInTheDocument();
+  });
+
+  it("supports email code registration and then enters chat", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.mocked(fetch);
+    const originalImplementation = fetchMock.getMockImplementation();
+    if (!originalImplementation) {
+      throw new Error("missing base fetch mock");
+    }
+    fetchMock.mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url
+      );
+      const method = init?.method ?? (input instanceof Request ? input.method : "GET");
+      const body = init?.body ?? (input instanceof Request ? input.body : null);
+      const jsonBody = typeof body === "string" ? JSON.parse(body) : null;
+
+      if (url.endsWith("/api/auth/email/send-code") && method === "POST") {
+        expect(jsonBody).toEqual({
+          email: "alice@example.com",
+          bizType: "register"
+        });
+        return jsonResponse({ code: 0, data: null });
+      }
+
+      if (url.endsWith("/api/auth/email/register") && method === "POST") {
+        expect(jsonBody).toEqual({
+          email: "alice@example.com",
+          password: "Abcd1234",
+          nickname: "Alice",
+          emailCode: "123456"
+        });
+        return jsonResponse({
+          code: 0,
+          data: {
+            userUid: "u_1001"
+          }
+        });
+      }
+
+      return (await originalImplementation(input, init)) as Response;
+    });
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: "查看彩蛋" });
+    await user.type(screen.getByLabelText("请输入今日幸运数字"), "2468");
+    await user.click(screen.getByRole("button", { name: "查看彩蛋" }));
+
+    await screen.findByRole("button", { name: "使用当前信息进入" });
+    await user.click(screen.getByRole("button", { name: "注册" }));
+    await user.type(screen.getByPlaceholderText("邮箱"), "alice@example.com");
+    await user.type(screen.getByPlaceholderText("昵称"), "Alice");
+    await user.type(screen.getByPlaceholderText("密码"), "Abcd1234");
+    await user.type(screen.getByPlaceholderText("邮箱验证码"), "123456");
+
+    await user.click(screen.getByRole("button", { name: "发送验证码" }));
+    await screen.findByText("验证码已发送，请查收邮箱；如使用本地 MailPit，可在 http://localhost:8025 查看。");
+
+    await user.click(screen.getByRole("button", { name: "注册并进入" }));
+    await screen.findByText("已连接后端账号，请继续设置或输入 PIN。");
   });
 });
 

@@ -258,6 +258,32 @@ docker run -d \
 
 MailPit 提供：
 - SMTP 服务器：`localhost:1025`
+- Web 控制台：`http://localhost:8025`
+
+### 6.5 邮件环境变量
+
+后端真实验证码发送使用 SMTP，运行时通过环境变量配置，不要把真实账号密码写入仓库：
+
+- `HIDECHAT_MAIL_ENABLED`：是否启用真实 SMTP 发送
+- `SPRING_MAIL_HOST`：SMTP host
+- `SPRING_MAIL_PORT`：SMTP port
+- `SPRING_MAIL_USERNAME`：SMTP username
+- `SPRING_MAIL_PASSWORD`：SMTP password
+- `HIDECHAT_MAIL_FROM_ADDRESS`：发件人邮箱
+- `HIDECHAT_MAIL_FROM_NAME`：发件人显示名
+- `SPRING_MAIL_SMTP_AUTH`：是否启用 SMTP AUTH
+- `SPRING_MAIL_SMTP_STARTTLS`：是否启用 STARTTLS
+- `SPRING_MAIL_SMTP_SSL_ENABLE`：是否启用 SSL
+
+开发环境默认可用 MailPit：
+
+- `SPRING_MAIL_HOST=mailpit`
+- `SPRING_MAIL_PORT=1025`
+- `SPRING_MAIL_SMTP_AUTH=false`
+- `SPRING_MAIL_SMTP_STARTTLS=false`
+- `SPRING_MAIL_SMTP_SSL_ENABLE=false`
+
+切换到真实邮箱服务时，只需要覆盖以上变量，不需要改代码。
 - Web 界面：`http://localhost:8025`
 
 ### 6.5 启动后端

@@ -32,6 +32,8 @@ spring:
           auth: ${SPRING_MAIL_SMTP_AUTH:false}
           starttls:
             enable: ${SPRING_MAIL_SMTP_STARTTLS:false}
+          ssl:
+            enable: ${SPRING_MAIL_SMTP_SSL_ENABLE:false}
 
 server:
   port: 8080
@@ -50,6 +52,9 @@ hidechat:
     enabled: ${HIDECHAT_MAIL_ENABLED:true}
     from-address: ${HIDECHAT_MAIL_FROM_ADDRESS:noreply@hidechat.local}
     from-name: ${HIDECHAT_MAIL_FROM_NAME:HideChat}
+    require-auth: ${SPRING_MAIL_SMTP_AUTH:false}
+    starttls-enabled: ${SPRING_MAIL_SMTP_STARTTLS:false}
+    ssl-enabled: ${SPRING_MAIL_SMTP_SSL_ENABLE:false}
   file:
     storage-root: ${HIDECHAT_FILE_STORAGE_ROOT:./storage/uploads}
     max-file-size-bytes: ${HIDECHAT_FILE_MAX_SIZE_BYTES:10485760}

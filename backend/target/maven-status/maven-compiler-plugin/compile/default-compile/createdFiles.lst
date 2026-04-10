@@ -1,4 +1,5 @@
 com/hidechat/modules/system/service/SystemService.class
+com/hidechat/modules/user/vo/UserSearchItemVO.class
 com/hidechat/modules/file/controller/FileController.class
 com/hidechat/modules/auth/vo/AuthUserInfoVO.class
 com/hidechat/modules/system/service/impl/SystemServiceImpl.class
@@ -14,6 +15,7 @@ com/hidechat/modules/contact/service/ContactService.class
 com/hidechat/modules/file/dto/CreateUploadSignRequest.class
 com/hidechat/security/SecurityWebProperties.class
 com/hidechat/persistence/mapper/ImMessageReadReceiptMapper.class
+com/hidechat/modules/system/dto/VerifyLuckyNumberRequest.class
 com/hidechat/modules/file/service/FileService.class
 com/hidechat/modules/system/controller/SystemController.class
 com/hidechat/websocket/security/WebSocketRateLimiter$WindowCounter.class
@@ -23,6 +25,7 @@ com/hidechat/common/util/IdGenerator.class
 com/hidechat/modules/auth/dto/EmailCodeLoginRequest.class
 com/hidechat/modules/auth/dto/EmailPasswordLoginRequest.class
 com/hidechat/common/config/AppConfig.class
+com/hidechat/modules/system/vo/LuckyNumberVerifyVO.class
 com/hidechat/persistence/entity/ImConversationEntity.class
 com/hidechat/modules/message/controller/MessageController.class
 com/hidechat/modules/message/service/MessageService.class
@@ -55,10 +58,12 @@ com/hidechat/security/SecurityConfig.class
 com/hidechat/common/exception/GlobalExceptionHandler.class
 com/hidechat/modules/auth/service/impl/AuthServiceImpl.class
 com/hidechat/modules/message/service/impl/MessageServiceImpl.class
+com/hidechat/modules/contact/vo/RecentContactItemVO.class
 com/hidechat/modules/auth/vo/RegisterUserVO.class
 com/hidechat/modules/message/vo/MessageItemVO.class
 com/hidechat/modules/auth/controller/AuthController.class
 com/hidechat/modules/contact/service/impl/ContactServiceImpl.class
+com/hidechat/persistence/mapper/ImDisguiseLuckyCodeMapper.class
 com/hidechat/websocket/config/WebSocketConfig.class
 com/hidechat/security/jwt/JwtClaims.class
 com/hidechat/persistence/mapper/ImConversationMapper.class
@@ -86,6 +91,7 @@ com/hidechat/modules/file/service/PublicFileContent.class
 com/hidechat/persistence/entity/ImUnreadCounterEntity.class
 com/hidechat/persistence/mapper/ImEmailCodeMapper.class
 com/hidechat/modules/file/service/impl/FileServiceImpl.class
+com/hidechat/persistence/entity/ImDisguiseLuckyCodeEntity.class
 com/hidechat/modules/auth/service/impl/LoggingEmailCodeSender.class
 com/hidechat/modules/system/vo/FortuneTodayVO.class
 com/hidechat/persistence/entity/ImMessageReadReceiptEntity.class

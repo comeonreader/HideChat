@@ -7,13 +7,17 @@ import {
   createChatWebSocket,
   createSingleConversation,
   fetchCurrentUser,
+  getPersistedAuthTokens,
   listContacts,
   listConversations,
   listRecentContacts,
   listMessageHistory,
+  loginByEmailCode,
   loginByPassword,
+  logout,
   markMessagesRead,
   registerByEmail,
+  resetPassword,
   searchUsers,
   sendEmailCode,
   sendMessage,
@@ -43,7 +47,8 @@ import "./app.css";
 
 type Screen = "disguise" | "auth" | "chat";
 type PublicView = "lucky" | "fortune";
-type AuthMode = "login" | "register";
+type AuthMode = "login" | "register" | "reset";
+type LoginMethod = "password" | "code";
 type ChatView = "list" | "conversation" | "add-friend";
 
 interface WsEnvelope {
@@ -55,16 +60,18 @@ interface AuthFormState {
   email: string;
   nickname: string;
   password: string;
+  newPassword: string;
   emailCode: string;
 }
 
-const AUTO_LOCK_IDLE_MS = 2 * 60 * 1000;
+const AUTO_LOCK_IDLE_MS = Number(import.meta.env.VITE_AUTO_LOCK_IDLE_MS ?? 2 * 60 * 1000);
 
 export function App() {
   const [screen, setScreen] = useState<Screen>("disguise");
   const [publicView, setPublicView] = useState<PublicView>("lucky");
   const [chatView, setChatView] = useState<ChatView>("list");
   const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const [loginMethod, setLoginMethod] = useState<LoginMethod>("password");
   const [pinInput, setPinInput] = useState("");
   const [session, setSession] = useState<HiddenSession | null>(null);
   const [vaultState, setVaultState] = useState(() => createLocalVaultState(false));
@@ -74,7 +81,7 @@ export function App() {
   const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({});
   const [activeConversationId, setActiveConversationId] = useState<string>("");
   const [composer, setComposer] = useState("");
-  const [statusText, setStatusText] = useState("运势页已加载，输入幸运数字进入隐藏入口。");
+  const [statusText, setStatusText] = useState("运势页已加载，输入幸运数字查看今日彩蛋。");
   const [authLoading, setAuthLoading] = useState(false);
   const [sendCodeLoading, setSendCodeLoading] = useState(false);
   const [searchingUsers, setSearchingUsers] = useState(false);
@@ -87,11 +94,40 @@ export function App() {
     email: "",
     nickname: "",
     password: "",
+    newPassword: "",
     emailCode: ""
   });
 
   const wsRef = useRef<WebSocket | null>(null);
   const autoLockTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      const persistedTokens = getPersistedAuthTokens();
+      if (!persistedTokens) {
+        return;
+      }
+
+      try {
+        const currentUser = await fetchCurrentUser();
+        if (cancelled) {
+          return;
+        }
+        await hydrateAuthenticatedState(currentUser, persistedTokens, false);
+        if (!cancelled) {
+          setStatusText("检测到本地登录态，输入幸运数字后可继续设置或输入 PIN。");
+        }
+      } catch {
+        // Ignore bootstrap errors so the disguise flow remains the primary entry path.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!session?.pin || !session.pinKdfParams || !vaultState.isUnlocked) {
@@ -301,11 +337,34 @@ export function App() {
           emailCode: authForm.emailCode.trim()
         });
       }
+      if (authMode === "reset") {
+        await resetPassword({
+          email: authForm.email.trim(),
+          emailCode: authForm.emailCode.trim(),
+          newPassword: authForm.newPassword
+        });
+        setAuthMode("login");
+        setLoginMethod("password");
+        setAuthForm((prev) => ({
+          ...prev,
+          password: prev.newPassword,
+          newPassword: "",
+          emailCode: ""
+        }));
+        setStatusText("密码已重置，请使用新密码重新登录。");
+        return;
+      }
 
-      const loginResult = await loginByPassword({
-        email: authForm.email.trim(),
-        password: authForm.password
-      });
+      const loginResult =
+        loginMethod === "code"
+          ? await loginByEmailCode({
+              email: authForm.email.trim(),
+              emailCode: authForm.emailCode.trim()
+            })
+          : await loginByPassword({
+              email: authForm.email.trim(),
+              password: authForm.password
+            });
       await finishAuthentication({
         ...loginResult,
         user: await fetchCurrentUser(loginResult.user.email).catch(() => loginResult.user)
@@ -321,8 +380,9 @@ export function App() {
   async function handleSendCode() {
     setSendCodeLoading(true);
     try {
-      await sendEmailCode(authForm.email.trim(), authMode === "register" ? "register" : "login");
-      setStatusText("验证码已发送，请查看测试邮件服务（http://localhost:8025）中的验证码。");
+      const bizType = authMode === "register" ? "register" : authMode === "reset" ? "reset_password" : "login";
+      await sendEmailCode(authForm.email.trim(), bizType);
+      setStatusText("验证码已发送，请查收邮箱；如使用本地 MailPit，可在 http://localhost:8025 查看。");
     } catch (error) {
       setStatusText(error instanceof Error ? error.message : "发送验证码失败");
     } finally {
@@ -632,12 +692,50 @@ export function App() {
     }
   }
 
+  async function handleLogout() {
+    const refreshToken = session?.tokens?.refreshToken;
+    let nextStatus = "已退出当前账号。";
+
+    if (refreshToken) {
+      try {
+        await logout(refreshToken);
+      } catch (error) {
+        clearStoredAuthState();
+        nextStatus = error instanceof Error ? `${error.message}，当前设备已完成本地退出。` : "服务端退出失败，当前设备已完成本地退出。";
+      }
+    } else {
+      clearStoredAuthState();
+    }
+
+    closeWebSocket();
+    await clearCachedConversations();
+    setVaultState(createLocalVaultState(false));
+    setSession(null);
+    setContacts([]);
+    setRecentContacts([]);
+    setConversations([]);
+    setMessages({});
+    setActiveConversationId("");
+    setComposer("");
+    setPinInput("");
+    setScreen("disguise");
+    setPublicView("lucky");
+    setChatView("list");
+    setAuthMode("login");
+    setLoginMethod("password");
+    setStatusText(nextStatus);
+  }
+
   async function finishAuthentication(input: { user: LocalUser; tokens: HiddenSession["tokens"] }) {
-    const storedPinSecret = await loadLocalSecret(buildPinSecretKey(input.user.userUid));
+    await hydrateAuthenticatedState(input.user, input.tokens, true);
+  }
+
+  async function hydrateAuthenticatedState(user: LocalUser, tokens: HiddenSession["tokens"], showAuthScreen: boolean) {
+    const storedPinSecret = await loadLocalSecret(buildPinSecretKey(user.userUid));
     const hasStoredPin = Boolean(storedPinSecret?.verifierHash && storedPinSecret.kdfParams);
     setSession((prev) => ({
-      user: input.user,
-      tokens: input.tokens,
+      user,
+      tokens,
       pin: undefined,
       pinVerifierHash: storedPinSecret?.verifierHash,
       pinSalt: storedPinSecret?.salt,
@@ -656,7 +754,9 @@ export function App() {
     setConversations(sortConversations(nextConversations));
     setMessages({});
     setActiveConversationId(nextConversations[0]?.conversationId ?? "");
-    setScreen("auth");
+    if (showAuthScreen) {
+      setScreen("auth");
+    }
   }
 
   async function hydrateMessagesAfterUnlock(pin: string, kdfParams: HiddenSession["pinKdfParams"]) {
@@ -778,7 +878,33 @@ export function App() {
               >
                 注册
               </button>
+              <button
+                className={authMode === "reset" ? "is-active" : ""}
+                type="button"
+                onClick={() => setAuthMode("reset")}
+              >
+                找回密码
+              </button>
             </div>
+
+            {authMode === "login" && (
+              <div className="tabs">
+                <button
+                  className={loginMethod === "password" ? "is-active" : ""}
+                  type="button"
+                  onClick={() => setLoginMethod("password")}
+                >
+                  密码登录
+                </button>
+                <button
+                  className={loginMethod === "code" ? "is-active" : ""}
+                  type="button"
+                  onClick={() => setLoginMethod("code")}
+                >
+                  验证码登录
+                </button>
+              </div>
+            )}
 
             <div className="fields">
               <input
@@ -786,18 +912,30 @@ export function App() {
                 onChange={(event) => setAuthForm((prev) => ({ ...prev, email: event.target.value }))}
                 placeholder="邮箱"
               />
-              <input
-                value={authForm.nickname}
-                onChange={(event) => setAuthForm((prev) => ({ ...prev, nickname: event.target.value }))}
-                placeholder="昵称"
-              />
-              <input
-                type="password"
-                value={authForm.password}
-                onChange={(event) => setAuthForm((prev) => ({ ...prev, password: event.target.value }))}
-                placeholder="密码"
-              />
               {authMode === "register" && (
+                <input
+                  value={authForm.nickname}
+                  onChange={(event) => setAuthForm((prev) => ({ ...prev, nickname: event.target.value }))}
+                  placeholder="昵称"
+                />
+              )}
+              {(authMode === "register" || (authMode === "login" && loginMethod === "password")) && (
+                <input
+                  type="password"
+                  value={authForm.password}
+                  onChange={(event) => setAuthForm((prev) => ({ ...prev, password: event.target.value }))}
+                  placeholder="密码"
+                />
+              )}
+              {authMode === "reset" && (
+                <input
+                  type="password"
+                  value={authForm.newPassword}
+                  onChange={(event) => setAuthForm((prev) => ({ ...prev, newPassword: event.target.value }))}
+                  placeholder="新密码"
+                />
+              )}
+              {(authMode === "register" || authMode === "reset" || (authMode === "login" && loginMethod === "code")) && (
                 <input
                   value={authForm.emailCode}
                   onChange={(event) => setAuthForm((prev) => ({ ...prev, emailCode: event.target.value }))}
@@ -807,13 +945,13 @@ export function App() {
             </div>
 
             <div className="auth-actions">
-              {authMode === "register" && (
+              {(authMode === "register" || authMode === "reset" || (authMode === "login" && loginMethod === "code")) && (
                 <button className="btn ghost" type="button" onClick={() => void handleSendCode()} disabled={sendCodeLoading}>
                   {sendCodeLoading ? "发送中..." : "发送验证码"}
                 </button>
               )}
               <button className="btn btn-brand" type="button" onClick={() => void handleAuthSubmit()} disabled={authLoading}>
-                {authLoading ? "处理中..." : authMode === "login" ? "使用当前信息进入" : "注册并进入"}
+                {authLoading ? "处理中..." : authMode === "register" ? "注册并进入" : authMode === "reset" ? "重置密码" : "使用当前信息进入"}
               </button>
             </div>
           </section>
@@ -996,20 +1134,7 @@ export function App() {
             <button
               className="btn ghost"
               type="button"
-              onClick={() => {
-                clearStoredAuthState();
-                void clearCachedConversations();
-                setVaultState(createLocalVaultState(false));
-                setSession(null);
-                setContacts([]);
-                setRecentContacts([]);
-                setConversations([]);
-                setMessages({});
-                setActiveConversationId("");
-                setScreen("disguise");
-                setPublicView("lucky");
-                setStatusText("已退出当前账号。");
-              }}
+              onClick={() => void handleLogout()}
             >
               退出账号
             </button>
