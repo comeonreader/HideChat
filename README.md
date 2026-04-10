@@ -1,176 +1,217 @@
 # HideChat
 
-HideChat 是一个“伪装入口 + 本地加密缓存 + 1V1 聊天后端”的 Web 隐私聊天项目。仓库内的 `docs/` 给出了完整产品与技术设计，当前代码已经实现可运行的前后端原型、数据库迁移、JWT 鉴权、WebSocket 消息通道，以及一套可执行的单元测试和集成测试。
+HideChat 是一个面向手机和桌面浏览器的 Web 隐私聊天系统，核心思路是用“运势页 + 幸运数字”作为伪装入口，再用本地 PIN 和浏览器密文缓存提高随手查看门槛。
 
-当前实现需要和设计文档区分理解：
+当前仓库已经不是纯设计稿或脚手架，而是包含了可运行的前后端实现、数据库 migration、接口测试、前端联调测试，以及一组用于对齐交互方向的 `mockup/` 原型页。
 
-- `docs/` 描述的是目标方案与接口边界
-- 当前 `frontend/` 已实现单页隐私演示流转，但主要仍是本地演示态
-- 当前 `backend/` 已实现大部分 MVP 后端模块，可独立启动并通过测试
+## 1. 项目目标
 
-## 仓库结构
+结合 [PRD](/home/reader/HideChat/docs/prd/HideChat_PRD.md)、[技术方案](/home/reader/HideChat/docs/tech-design/HideChat技术方案文档%20v1.0.md)、[接口文档](/home/reader/HideChat/docs/api/后端接口定义文档%20v1.0.md) 和当前代码，HideChat 当前阶段目标是：
 
-- `docs/`: 产品、技术方案、数据库、接口和测试文档
-- `frontend/`: Vite + React + TypeScript 前端
-- `backend/`: Spring Boot 3 + MyBatis-Plus + PostgreSQL + Redis 后端
-- `scripts/run-backend-integration-tests.sh`: 后端集成测试统一入口
-- `HideChatDocs/`: 原始文档镜像
+- 伪装入口：幸运数字校验，未命中时继续展示运势内容
+- 账号体系：邮箱注册、邮箱密码登录、邮箱验证码登录、重置密码、刷新令牌
+- 联系人与 1V1 会话：搜索用户、添加联系人、创建或获取单聊会话
+- 消息能力：文本消息、图片消息、通用文件附件消息
+- 实时通信：REST + WebSocket
+- 本地隐私：PIN 解锁、IndexedDB 密文缓存
+- 浏览器适配：手机端与桌面端主链路可用
 
-## 依据设计文档整理的当前已实现功能
+产品设计理念可以概括为一句话：
 
-### 1. 伪装入口与系统页
+> 让聊天存在，但看不见。
 
-已实现：
+## 2. 仓库结构
 
-- 前端首页以“今日运势”作为伪装入口
-- 前端会优先请求后端公开接口：
+- `docs/`：产品、技术、数据库、接口、测试文档
+- `mockup/`：原型页，覆盖幸运数字页、运势页、聊天列表、聊天页、添加好友页
+- `backend/`：Spring Boot 3 + MyBatis-Plus + PostgreSQL + Redis 后端
+- `frontend/`：Vite + React + TypeScript 前端
+- `scripts/run-backend-integration-tests.sh`：后端集成测试统一入口
+
+## 3. docs、mockup 与当前实现的关系
+
+这三个层次需要分开理解：
+
+- `docs/` 描述的是产品目标、接口边界和推荐技术方案
+- `mockup/` 描述的是页面信息架构和视觉/交互方向
+- `backend/` 与 `frontend/` 描述的是当前实际可运行实现
+
+当前实现与设计文档整体一致，但有两点需要特别注意：
+
+- 设计文档里有一部分内容是“目标状态”，不代表每个细节都已经完全实现
+- 当前代码里也有一些实现已经超过早期文档，例如真实登录、真实联系人/会话/消息联调、真实本地文件上传链路
+
+## 4. 当前已实现能力
+
+### 4.1 伪装入口与运势页
+
+对应原型：
+
+- [mockup/lucky-number.html](/home/reader/HideChat/mockup/lucky-number.html)
+- [mockup/fortune.html](/home/reader/HideChat/mockup/fortune.html)
+
+当前实现：
+
+- 前端默认展示伪装入口和运势内容
+- 前端会请求后端公开接口：
   - `GET /api/system/fortune/today`
   - `GET /api/system/disguise-config`
-- 后端 `system` 模块已返回每日运势和伪装配置
-- 当前前端在后端不可用时会自动回退到本地默认数据
+  - `POST /api/system/disguise/verify-lucky-number`
+- 幸运数字命中后进入隐藏聊天系统；未命中时继续留在伪装链路
+- 当前前端在公开接口不可用时，对运势内容有兜底展示
 
-当前边界：
+### 4.2 登录、注册与鉴权
 
-- 设计文档中的“用户自定义幸运数字 + localStorage 持久化 hash”尚未落地
-- 当前前端使用内置演示幸运数字 `2468`，并在运行时计算 SHA-256 后校验
+当前实现：
 
-### 2. PIN 解锁与本地加密缓存
+- `POST /api/auth/email/send-code`
+- `POST /api/auth/email/register`
+- `POST /api/auth/email/password-login`
+- `POST /api/auth/email/code-login`
+- `POST /api/auth/email/reset-password`
+- `POST /api/auth/refresh-token`
+- `POST /api/auth/logout`
 
-已实现：
+补充说明：
 
-- 前端具备 PIN 设置与 PIN 解锁流程
-- 消息缓存写入浏览器 IndexedDB，库名为 `hidechat-local`
-- 缓存内容以密文形式保存，解锁后再恢复到页面
-- 提供“返回伪装页”能力，能从聊天页退回伪装入口
-- 已有前端 E2E 覆盖：
-  - 幸运数字进入隐藏入口
-  - 设置 PIN
-  - 发送消息
-  - 验证 IndexedDB 中保存的是密文
-  - 返回伪装页后再次用 PIN 解锁
+- Access Token / Refresh Token 已接入
+- 前端会把登录态保存到 `localStorage`
+- 邮件能力支持 SMTP；默认使用 MailPit 测试邮件服务
+- 开发环境下，验证码会发送到 MailPit（http://localhost:8025）
+- 生产环境需配置真实的 SMTP 服务器
 
-当前边界：
+### 4.3 联系人、会话与用户搜索
 
-- 当前加密实现为 Web Crypto `AES-GCM`，密钥由 `SHA-256(pin)` 派生，和设计文档中建议的 `PBKDF2(pin, salt, 10000)` 不完全一致
-- PIN 哈希当前只保存在前端运行时状态中，没有做刷新后持久化
-- 自动锁定、标签页切换锁定、错误次数限制等安全策略尚未实现
+对应原型：
 
-### 3. 聊天列表与聊天界面
+- [mockup/chat-list.html](/home/reader/HideChat/mockup/chat-list.html)
+- [mockup/add-friend.html](/home/reader/HideChat/mockup/add-friend.html)
 
-已实现：
+当前实现：
 
-- 前端已具备联系人列表、会话列表、消息列表和发送框
-- 发送文本消息后会更新会话摘要、联系人最近互动时间，并同步刷新本地密文缓存
-- 当前前端演示态内置了示例联系人、会话和消息数据
+- `GET /api/user/me`
+- `GET /api/user/search`
+- `PUT /api/user/profile`
+- `POST /api/contact/add`
+- `GET /api/contact/list`
+- `GET /api/contact/recent`
+- `POST /api/conversation/single`
+- `GET /api/conversation/list`
+- `POST /api/conversation/clear-unread`
 
-当前边界：
+行为特点：
 
-- 前端还没有接入后端的真实登录、联系人、会话、消息和 WebSocket 链路
-- 图片消息前端 UI 与实际上传流程尚未接入
-- 当前聊天页更接近“隐私流转原型 + 本地缓存验证页”
+- 支持按昵称和展示用用户 ID 搜索，不返回邮箱
+- 联系人列表、最近联系人、会话列表都已落地
+- 会话列表按设计要求做脱敏预览，不直接暴露真实消息内容
 
-### 4. 后端账号与鉴权
+### 4.4 文本、图片、文件消息
 
-已实现：
+对应原型：
 
-- 邮箱验证码发送：`POST /api/auth/email/send-code`
-- 邮箱注册：`POST /api/auth/email/register`
-- 邮箱密码登录：`POST /api/auth/email/password-login`
-- 邮箱验证码登录：`POST /api/auth/email/code-login`
-- 重置密码：`POST /api/auth/email/reset-password`
-- 刷新令牌：`POST /api/auth/refresh-token`
-- 登出：`POST /api/auth/logout`
-- JWT 鉴权过滤器、Access Token / Refresh Token 机制
-- 验证码、Refresh Token、用户认证信息均已落库
+- [mockup/chat.html](/home/reader/HideChat/mockup/chat.html)
 
-当前边界：
+当前实现：
 
-- 验证码发送器当前是 `LoggingEmailCodeSender`，只写日志，不会真正发邮件
+- `POST /api/message/send`
+- `GET /api/message/history`
+- `POST /api/message/read`
+- `POST /api/file/upload-sign`
+- `PUT /api/file/upload/{fileId}`
+- `POST /api/file/complete`
+- `GET /api/file/{fileId}`
+- `GET /api/file/content/{fileId}?expires=...&signature=...`
 
-### 5. 后端用户、联系人、会话、消息
+补充说明：
 
-已实现：
+- 文本消息、图片消息、通用文件消息已接入
+- 文件当前默认落盘到后端本地目录，而不是对象存储
+- 文件访问使用签名 URL
+- 聊天页可展示真实文件名和大小；会话列表保持脱敏
 
-- 用户资料：
-  - `GET /api/user/me`
-  - `PUT /api/user/profile`
-- 联系人：
-  - `POST /api/contact/add`
-  - `GET /api/contact/list`
-- 会话：
-  - `POST /api/conversation/single`
-  - `GET /api/conversation/list`
-  - `POST /api/conversation/clear-unread`
-- 消息：
-  - `POST /api/message/send`
-  - `GET /api/message/history`
-  - `POST /api/message/read`
-- PostgreSQL 中已包含用户、认证、联系人、会话、消息、未读计数、文件等表结构
-- 会话摘要、未读数、已读回执、联系人最后互动时间都已在服务层处理
-- 用户资料读取带 Redis 缓存
+### 4.5 WebSocket 实时链路
 
-### 6. 文件与 WebSocket
+当前实现：
 
-已实现：
+- 端点：`/ws/chat`
+- 支持 `CHAT_SEND`、`CHAT_ACK`、`CHAT_RECEIVE`、`CHAT_READ`
+- 前端登录后会建立 WebSocket 连接
+- 文本消息优先通过 WebSocket 发送并处理 ACK / 已读同步
 
-- 文件接口：
-  - `POST /api/file/upload-sign`
-  - `POST /api/file/complete`
-  - `GET /api/file/{fileId}`
-- WebSocket 端点：`/ws/chat`
-- WebSocket 支持：
-  - `CHAT_SEND`
-  - `CHAT_READ`
-  - 服务端 ACK
-  - 在线用户转发
+### 4.6 PIN、本地加密与浏览器缓存
 
-当前边界：
+当前实现：
 
-- 文件上传签名与访问地址仍是示例 URL：
-  - `https://storage.example.com/upload/`
-  - `https://cdn.example.com/`
-- 当前更适合本地开发和接口联调，不适合直接作为生产存储实现
+- 浏览器 IndexedDB 库名：`hidechat-local`
+- 会话密文缓存存放在 `conversation-cache`
+- PIN 校验材料存放在 `local-secrets`
+- 加密方案为 `PBKDF2 + AES-GCM`
+- PIN 明文不会持久化保存
+- 返回伪装页后，可再次通过 PIN 解锁本地历史消息
 
-### 7. 测试与验证
+与设计文档对比：
 
-已实现并在状态文档中标记通过：
+- 文档建议的本地存储分层与安全边界基本一致
+- 当前实现没有做到更高阶的自动锁定、错误次数限制、多端密钥同步
 
-- 后端单元测试：`mvn test`
-- 后端 PostgreSQL + Redis Testcontainers 集成测试
-- 前端单元测试：加密逻辑
-- 前端 E2E：隐私主路径
-- 前端构建：`npm run build`
+## 5. 技术栈
 
-## 本地启动指南
-
-### 环境准备
-
-建议准备以下环境：
+后端：
 
 - Java 17
+- Spring Boot 3.3.5
+- Spring Security
+- Spring WebSocket
+- MyBatis-Plus 3.5.7
+- Flyway
+- PostgreSQL
+- Redis
+
+前端：
+
+- React 18
+- TypeScript 5
+- Vite 5
+- Web Crypto API
+- IndexedDB
+- 原生 WebSocket
+
+测试：
+
+- JUnit 5
+- Spring Boot Test
+- Testcontainers
+- Vitest
+- Testing Library
+- fake-indexeddb
+
+## 6. 快速开始
+
+### 6.1 环境要求
+
+- Java 17+
 - Maven 3.9+
-- Node.js 20 LTS
+- Node.js 20+
 - npm 10+
-- PostgreSQL 14+ 或 15+
+- PostgreSQL 14+
 - Redis 7+
 - Docker
-  - 用于执行后端 Testcontainers 集成测试
 
-可先检查版本：
+建议先确认版本：
 
 ```bash
 java -version
 mvn -version
 node -v
 npm -v
-docker -v
 psql --version
 redis-server --version
+docker -v
 ```
 
-### 1. 初始化数据库与 Redis
+### 6.2 初始化 PostgreSQL
 
-先准备一个本地 PostgreSQL 数据库和用户。当前默认开发配置使用：
+默认开发配置来自 [application.yml](/home/reader/HideChat/backend/src/main/resources/application.yml) 和 [application-dev.yml](/home/reader/HideChat/backend/src/main/resources/application-dev.yml)：
 
 - 数据库：`hidechat_dev`
 - 用户：`hidechat_dev`
@@ -185,196 +226,305 @@ CREATE USER hidechat_dev WITH PASSWORD 'hidechat_dev';
 GRANT ALL PRIVILEGES ON DATABASE hidechat_dev TO hidechat_dev;
 ```
 
-Redis 默认连接：
+首次启动后端时，Flyway 会自动执行：
 
-- host: `localhost`
-- port: `6379`
-- database: `0`
+- [V1__init_schema.sql](/home/reader/HideChat/backend/src/main/resources/db/migration/V1__init_schema.sql)
+- [V2__add_disguise_lucky_code.sql](/home/reader/HideChat/backend/src/main/resources/db/migration/V2__add_disguise_lucky_code.sql)
+- [V3__allow_file_message_type.sql](/home/reader/HideChat/backend/src/main/resources/db/migration/V3__allow_file_message_type.sql)
 
-后端启动时会通过 Flyway 自动执行 [V1__init_schema.sql](/home/reader/HideChat/backend/src/main/resources/db/migration/V1__init_schema.sql) 初始化表结构。
+### 6.3 初始化 Redis
 
-### 2. 修改后端配置
+默认开发配置：
 
-优先检查这两个文件：
+- Host：`localhost`
+- Port：`6379`
+- DB：`0`
 
-- [application.yml](/home/reader/HideChat/backend/src/main/resources/application.yml)
-- [application-dev.yml](/home/reader/HideChat/backend/src/main/resources/application-dev.yml)
+### 6.4 启动邮件服务（MailPit）
 
-最常见需要调整的配置项：
+开发环境默认包含 MailPit 测试邮件服务：
 
-- 数据库连接：
-  - `spring.datasource.url`
-  - `spring.datasource.username`
-  - `spring.datasource.password`
-- Redis 连接：
-  - `spring.data.redis.host`
-  - `spring.data.redis.port`
-  - `spring.data.redis.database`
-- 服务端口：
-  - `server.port`
-- JWT：
-  - `hidechat.security.jwt.issuer`
-  - `hidechat.security.jwt.secret`
-  - `hidechat.security.jwt.access-token-expire-seconds`
-  - `hidechat.security.jwt.refresh-token-expire-seconds`
-- WebSocket 端点：
-  - `hidechat.websocket.endpoint`
+```bash
+# 使用 docker-compose 启动所有服务（包括 MailPit）
+docker-compose up -d
 
-至少应把开发环境的 JWT secret 改成你自己的值，不要继续使用仓库内默认示例值。
+# 或者单独启动 MailPit
+docker run -d \
+  --name hidechat-mailpit \
+  -p 1025:1025 \
+  -p 8025:8025 \
+  axllent/mailpit:latest
+```
 
-### 3. 启动后端
+MailPit 提供：
+- SMTP 服务器：`localhost:1025`
+- Web 界面：`http://localhost:8025`
+
+### 6.5 启动后端
 
 ```bash
 cd backend
 mvn spring-boot:run
 ```
 
-默认启动后：
+默认端口：
 
-- HTTP: `http://localhost:8080`
-- WebSocket: `ws://localhost:8080/ws/chat`
+- HTTP：`http://localhost:8080`
+- WebSocket：`ws://localhost:8080/ws/chat`
 
-如果只想先验证公开接口，可直接访问：
+启动后可先做一次 smoke test：
 
 ```bash
 curl http://localhost:8080/api/system/fortune/today
 curl http://localhost:8080/api/system/disguise-config
 ```
 
-### 4. 启动前端
-
-先安装依赖：
+### 6.5 启动前端
 
 ```bash
 cd frontend
 npm install
-```
-
-开发模式启动：
-
-```bash
 npm run dev
 ```
 
-默认地址：
+默认端口：
 
 - `http://localhost:5173`
 
-### 5. 前端联调说明
+### 6.6 前后端联调方式
 
-当前前端请求使用相对路径 `/api`，而 [vite.config.ts](/home/reader/HideChat/frontend/vite.config.ts) 里没有配置开发代理。
+前端默认行为：
 
-这意味着：
+- `VITE_API_BASE_URL` 未设置时，REST 基地址默认为 `/api`
+- `VITE_WS_BASE_URL` 未设置时，WebSocket 默认连到当前域名下的 `/ws/chat`
 
-- 只启动前端时，系统公开接口会失败并自动回退到本地默认数据
-- 如果要在本地开发时直接联调后端，建议给 Vite 增加代理
+这意味着本地开发有两种方式：
 
-可在 [vite.config.ts](/home/reader/HideChat/frontend/vite.config.ts) 中加入：
+1. 通过反向代理把前端、后端挂到同一域名
+2. 直接指定前端环境变量
 
-```ts
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    port: 5173,
-    proxy: {
-      "/api": "http://localhost:8080",
-      "/ws": {
-        target: "ws://localhost:8080",
-        ws: true
-      }
-    }
-  },
-  test: {
-    environment: "jsdom",
-    setupFiles: "./tests/setup.ts"
-  }
-});
+示例：
+
+```bash
+cd frontend
+VITE_API_BASE_URL=http://localhost:8080/api \
+VITE_WS_BASE_URL=ws://localhost:8080/ws/chat \
+npm run dev
 ```
 
-如果你不想改 Vite，也可以在 Nginx / Caddy 上把前端和后端挂到同一域名下，用反向代理统一 `/api` 和 `/ws`。
+如果你使用单独域名联调，还需要确认后端允许来源配置：
 
-## 常用命令
+- `HIDECHAT_ALLOWED_ORIGIN`
 
-### 后端
+## 7. 常用配置项
+
+### 7.1 后端
+
+常用环境变量或配置项：
+
+- `SPRING_DATASOURCE_URL`
+- `SPRING_DATASOURCE_USERNAME`
+- `SPRING_DATASOURCE_PASSWORD`
+- `SPRING_DATA_REDIS_HOST`
+- `SPRING_DATA_REDIS_PORT`
+- `SPRING_DATA_REDIS_DATABASE`
+- `HIDECHAT_SECURITY_JWT_SECRET`
+- `HIDECHAT_ALLOWED_ORIGIN`
+- `HIDECHAT_MAIL_ENABLED`
+- `SPRING_MAIL_HOST`
+- `SPRING_MAIL_PORT`
+- `SPRING_MAIL_USERNAME`
+- `SPRING_MAIL_PASSWORD`
+- `SPRING_MAIL_SMTP_AUTH`
+- `SPRING_MAIL_SMTP_STARTTLS`
+- `HIDECHAT_MAIL_FROM_ADDRESS`
+- `HIDECHAT_MAIL_FROM_NAME`
+- `HIDECHAT_FILE_STORAGE_ROOT`
+- `HIDECHAT_FILE_MAX_SIZE_BYTES`
+- `HIDECHAT_FILE_SIGNED_URL_EXPIRE_SECONDS`
+- `HIDECHAT_FILE_URL_SIGNATURE_SECRET`
+- `HIDECHAT_AUTH_RPM`
+- `HIDECHAT_WS_RPM`
+
+上线前必须修改：
+
+- JWT secret
+- 数据库密码
+- Redis 密码
+- 文件签名密钥
+- Allowed origins
+
+### 7.2 前端
+
+当前前端主要依赖两个构建时环境变量：
+
+- `VITE_API_BASE_URL`
+- `VITE_WS_BASE_URL`
+
+## 8. 测试与验收
+
+### 8.1 后端单元测试
 
 ```bash
 cd backend
-mvn test
+mvn test -DskipITs
 ```
+
+### 8.2 后端集成测试
+
+需要 Docker，因为测试依赖 Testcontainers。
 
 ```bash
 ./scripts/run-backend-integration-tests.sh
 ```
 
-### 前端
+日志输出到：
+
+- [backend/target/integration-tests.log](/home/reader/HideChat/backend/target/integration-tests.log)
+
+### 8.3 前端测试
 
 ```bash
 cd frontend
 npm test
-```
-
-```bash
-cd frontend
 npm run test:e2e
-```
-
-```bash
-cd frontend
 npm run build
 ```
 
-## 项目部署建议
+### 8.4 验收参考
 
-### 1. 部署形态建议
+测试与验收标准见：
 
-建议采用下面的拆分：
+- [docs/test/测试与验收标准 v1.0.md](/home/reader/HideChat/docs/test/测试与验收标准%20v1.0.md)
+- [docs/test/接口测试清单 Postman Apifox.md](/home/reader/HideChat/docs/test/接口测试清单%20Postman%20Apifox.md)
+- [docs/STATUS.md](/home/reader/HideChat/docs/STATUS.md)
 
-- `frontend`
-  - 打包成静态资源
-  - 由 Nginx、Caddy 或 CDN 提供访问
-- `backend`
-  - 独立部署为 Spring Boot 服务
-  - 对外暴露 REST 和 WebSocket
-- `postgresql`
-  - 独立实例或托管数据库
-- `redis`
-  - 独立实例或托管缓存
-- `object storage`
-  - 使用 MinIO、S3、OSS、COS 等真实对象存储
+## 9. Docker 部署指南
 
-### 2. 网关与反向代理建议
+仓库当前提供了前后端各自的 Dockerfile，但没有现成的 `docker-compose.yml`。推荐部署形态是：
 
-建议通过 Nginx 或 Caddy 暴露单一域名：
+- `frontend`：Nginx 提供静态资源
+- `backend`：Spring Boot 服务
+- `postgres`：独立数据库
+- `redis`：独立缓存
+
+### 9.1 构建镜像
+
+后端：
+
+```bash
+docker build -t hidechat-backend:local ./backend
+```
+
+前端：
+
+```bash
+docker build -t hidechat-frontend:local ./frontend
+```
+
+### 9.2 创建网络
+
+```bash
+docker network create hidechat-net
+```
+
+### 9.3 启动 PostgreSQL 和 Redis
+
+```bash
+docker run -d \
+  --name hidechat-postgres \
+  --network hidechat-net \
+  -e POSTGRES_DB=hidechat \
+  -e POSTGRES_USER=hidechat \
+  -e POSTGRES_PASSWORD=hidechat \
+  postgres:16
+```
+
+```bash
+docker run -d \
+  --name hidechat-redis \
+  --network hidechat-net \
+  redis:7-alpine
+```
+
+### 9.4 启动后端容器
+
+```bash
+docker run -d \
+  --name hidechat-backend \
+  --network hidechat-net \
+  -p 8080:8080 \
+  -e SPRING_DATASOURCE_URL='jdbc:postgresql://hidechat-postgres:5432/hidechat?currentSchema=hidechat' \
+  -e SPRING_DATASOURCE_USERNAME=hidechat \
+  -e SPRING_DATASOURCE_PASSWORD=hidechat \
+  -e SPRING_DATA_REDIS_HOST=hidechat-redis \
+  -e SPRING_DATA_REDIS_PORT=6379 \
+  -e HIDECHAT_SECURITY_JWT_SECRET='replace-with-a-long-random-secret' \
+  -e HIDECHAT_ALLOWED_ORIGIN=http://localhost \
+  -e HIDECHAT_MAIL_ENABLED=false \
+  -e HIDECHAT_FILE_STORAGE_ROOT=/data/uploads \
+  -e HIDECHAT_FILE_URL_SIGNATURE_SECRET='change-this-secret' \
+  -v "$(pwd)/.data/uploads:/data/uploads" \
+  hidechat-backend:local
+```
+
+说明：
+
+- 后端启动时会自动执行 Flyway migration
+- 文件默认落盘到容器内 `/data/uploads`
+- 本地卷挂载建议保留，否则容器重建后文件会丢失
+
+### 9.5 启动前端容器
+
+如果前端和后端不在同一域名下，需要在构建前指定 API / WS 地址：
+
+```bash
+cd frontend
+VITE_API_BASE_URL=http://localhost:8080/api \
+VITE_WS_BASE_URL=ws://localhost:8080/ws/chat \
+docker build -t hidechat-frontend:local .
+```
+
+启动：
+
+```bash
+docker run -d \
+  --name hidechat-frontend \
+  --network hidechat-net \
+  -p 80:80 \
+  hidechat-frontend:local
+```
+
+### 9.6 推荐的生产代理方式
+
+更稳妥的生产方案是把前端和后端收敛到同一域名：
 
 - `/` -> 前端静态资源
 - `/api` -> 后端 HTTP
 - `/ws/chat` -> 后端 WebSocket
 
-这样可以同时解决：
+这样可以简化：
 
-- 前端相对路径请求
-- WebSocket 升级转发
-- CORS 复杂度
+- 前端环境变量管理
+- WebSocket 地址切换
+- CORS 配置
 
-### 3. 上生产前必须补齐的内容
+## 10. 当前已知边界
 
-- 把 JWT secret、数据库密码、Redis 密码改为环境变量注入
-- 将 `LoggingEmailCodeSender` 替换为真实邮件服务
-- 将文件服务中的示例上传 URL / CDN URL 替换为真实对象存储实现
-- 收紧 WebSocket 和 HTTP 的允许来源，不要保留 `setAllowedOriginPatterns("*")`
-- 为 PostgreSQL 与 Redis 配置备份、监控和告警
-- 增加浏览器级 WebSocket 联调测试和文件消息 E2E
+基于设计文档和当前实现，下面这些点仍应视为后续增强项，而不是已经完全收口的生产能力：
 
-### 4. 对当前代码的落地建议
+- 还没有提供官方 `docker-compose.yml` 或 Kubernetes 清单
+- 文件存储仍是本地文件系统，不是对象存储预签名上传
+- 限流是单实例内存窗口，多实例部署需要升级
+- 没有实现更严格的 PIN 错误次数限制和自动锁定策略
+- 真实浏览器驱动 E2E 仍可继续补强
 
-如果近期目标是“尽快形成可演示版本”，建议按这个优先级推进：
+## 11. 相关文档
 
-1. 先把前端接上后端真实登录、联系人、会话、消息接口
-2. 给 Vite 或网关补齐本地联调代理
-3. 把 PIN 与幸运数字配置做本地持久化
-4. 替换邮件与对象存储占位实现
-5. 再补自动锁定、图片消息和更严格的安全策略
-
-## 当前结论
-
-HideChat 现在已经不是单纯脚手架，而是“后端 MVP 基本完整 + 前端隐私流转原型已可运行”的状态。若目标是继续作为产品推进，下一阶段的关键不是再补设计文档，而是把前端从演示态接到真实后端链路，并替换邮件、对象存储和联调代理这些占位实现。
+- [docs/prd/HideChat_PRD.md](/home/reader/HideChat/docs/prd/HideChat_PRD.md)
+- [docs/tech-design/HideChat技术方案文档 v1.0.md](/home/reader/HideChat/docs/tech-design/HideChat技术方案文档%20v1.0.md)
+- [docs/api/后端接口定义文档 v1.0.md](/home/reader/HideChat/docs/api/后端接口定义文档%20v1.0.md)
+- [docs/database/PostgreSQL DDL 建表脚本 v1.0.md](/home/reader/HideChat/docs/database/PostgreSQL%20DDL%20建表脚本%20v1.0.md)
+- [docs/database/数据库字段设计文档 v1.0.md](/home/reader/HideChat/docs/database/数据库字段设计文档%20v1.0.md)
+- [docs/test/测试与验收标准 v1.0.md](/home/reader/HideChat/docs/test/测试与验收标准%20v1.0.md)
+- [docs/STATUS.md](/home/reader/HideChat/docs/STATUS.md)

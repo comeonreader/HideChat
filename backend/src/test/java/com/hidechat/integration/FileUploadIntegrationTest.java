@@ -2,6 +2,7 @@ package com.hidechat.integration;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -53,10 +54,12 @@ class FileUploadIntegrationTest extends AbstractIntegrationTest {
         ), headers);
 
         String accessUrl = readTree(completeResponse).path("data").path("accessUrl").asText();
+        String downloadUrl = readTree(completeResponse).path("data").path("downloadUrl").asText();
         ResponseEntity<byte[]> contentResponse = restTemplate.exchange(accessUrl, HttpMethod.GET, null, byte[].class);
 
         assertEquals(200, contentResponse.getStatusCode().value());
         assertEquals(MediaType.IMAGE_PNG, contentResponse.getHeaders().getContentType());
         assertArrayEquals("test".getBytes(), contentResponse.getBody());
+        assertTrue(downloadUrl.contains("download=true"));
     }
 }

@@ -10,12 +10,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hidechat.common.exception.BusinessException;
 import com.hidechat.common.exception.GlobalExceptionHandler;
 import com.hidechat.modules.user.controller.UserController;
 import com.hidechat.modules.user.dto.UpdateProfileRequest;
 import com.hidechat.modules.user.service.UserService;
 import com.hidechat.modules.user.vo.UserProfileVO;
+import com.hidechat.modules.user.vo.UserSearchItemVO;
 import com.hidechat.security.context.CurrentUserProvider;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,7 +55,9 @@ class UserControllerTest {
         mockMvc.perform(get("/api/user/me"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.userUid").value("u_1001"))
-            .andExpect(jsonPath("$.data.nickname").value("Alice"));
+            .andExpect(jsonPath("$.data.displayUserId").value("hide_1001"))
+            .andExpect(jsonPath("$.data.nickname").value("Alice"))
+            .andExpect(jsonPath("$.data.email").doesNotExist());
     }
 
     @Test
@@ -71,12 +76,40 @@ class UserControllerTest {
             .andExpect(jsonPath("$.code").value(0));
     }
 
+    @Test
+    void shouldSearchUsers() throws Exception {
+        UserSearchItemVO result = new UserSearchItemVO();
+        result.setUserUid("u_1002");
+        result.setDisplayUserId("hide_1002");
+        result.setNickname("Bob");
+        result.setMatchType("nickname");
+        result.setAlreadyAdded(Boolean.FALSE);
+
+        when(currentUserProvider.getRequiredUserUid()).thenReturn("u_1001");
+        when(userService.searchUsers("u_1001", "Bob")).thenReturn(List.of(result));
+
+        mockMvc.perform(get("/api/user/search").param("keyword", "Bob"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[0].userUid").value("u_1002"))
+            .andExpect(jsonPath("$.data[0].displayUserId").value("hide_1002"))
+            .andExpect(jsonPath("$.data[0].alreadyAdded").value(false));
+    }
+
+    @Test
+    void shouldReturnUnauthorizedForProfileWhenCurrentUserMissing() throws Exception {
+        when(currentUserProvider.getRequiredUserUid()).thenThrow(new BusinessException(401001, "未登录或 token 无效"));
+
+        mockMvc.perform(get("/api/user/me"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.code").value(401001));
+    }
+
     private UserProfileVO buildProfile() {
         UserProfileVO vo = new UserProfileVO();
         vo.setUserUid("u_1001");
+        vo.setDisplayUserId("hide_1001");
         vo.setNickname("Alice");
         vo.setAvatarUrl("https://cdn/avatar.png");
-        vo.setEmail("alice@example.com");
         return vo;
     }
 }

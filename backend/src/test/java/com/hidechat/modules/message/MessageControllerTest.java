@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hidechat.common.exception.BusinessException;
 import com.hidechat.common.exception.GlobalExceptionHandler;
 import com.hidechat.modules.message.controller.MessageController;
 import com.hidechat.modules.message.dto.MarkMessageReadRequest;
@@ -99,5 +100,21 @@ class MessageControllerTest {
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(0));
+    }
+
+    @Test
+    void shouldRejectMissingConversationIdForHistory() throws Exception {
+        mockMvc.perform(get("/api/message/history"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.code").value(400001));
+    }
+
+    @Test
+    void shouldReturnUnauthorizedWhenCurrentUserMissing() throws Exception {
+        when(currentUserProvider.getRequiredUserUid()).thenThrow(new BusinessException(401001, "未登录或 token 无效"));
+
+        mockMvc.perform(get("/api/message/history").param("conversationId", "c_1001"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.code").value(401001));
     }
 }

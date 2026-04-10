@@ -7,7 +7,10 @@ import type {
   DisguiseConfig,
   FileInfo,
   FortuneToday,
-  LocalUser
+  LuckyNumberVerifyResult,
+  LocalUser,
+  RecentContactItem,
+  UserSearchItem
 } from "../types";
 
 const baseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api";
@@ -26,6 +29,13 @@ interface StoredAuthState {
 
 interface AuthUserInfo {
   userUid: string;
+  nickname: string;
+  avatarUrl?: string | null;
+}
+
+interface UserProfileResponse {
+  userUid: string;
+  displayUserId: string;
   nickname: string;
   avatarUrl?: string | null;
 }
@@ -62,6 +72,8 @@ interface FileUploadSignResponse {
   headers?: Record<string, string>;
 }
 
+let refreshPromise: Promise<AuthTokens> | null = null;
+
 export class ApiError extends Error {
   readonly code?: number;
   readonly status?: number;
@@ -80,7 +92,8 @@ function mapUserInfoToLocalUser(userInfo: AuthUserInfo, email: string): LocalUse
   return {
     userUid: userInfo.userUid,
     nickname: userInfo.nickname,
-    email
+    email,
+    avatarUrl: userInfo.avatarUrl
   };
 }
 
@@ -131,7 +144,43 @@ export function clearStoredAuthState(): void {
   window.localStorage.removeItem(AUTH_STORAGE_KEY);
 }
 
-async function requestJson<T>(path: string, init?: RequestInit, requiresAuth = false): Promise<T> {
+function isUnauthorized(status: number, code?: number): boolean {
+  return status === 401 || code === 401001;
+}
+
+async function refreshAccessToken(): Promise<AuthTokens> {
+  const authState = getStoredAuthState();
+  if (!authState?.refreshToken) {
+    clearStoredAuthState();
+    throw new ApiError("登录状态已失效，请重新登录", { status: 401 });
+  }
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      try {
+        const token = await requestJson<AuthTokenResponse>(
+          "/auth/refresh-token",
+          {
+            method: "POST",
+            body: JSON.stringify({ refreshToken: authState.refreshToken })
+          },
+          false,
+          false
+        );
+        const nextTokens = mapTokenResponse(token);
+        saveStoredAuthState(nextTokens);
+        return nextTokens;
+      } catch (error) {
+        clearStoredAuthState();
+        throw error;
+      }
+    })().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
+async function requestJson<T>(path: string, init?: RequestInit, requiresAuth = false, allowRefresh = true): Promise<T> {
   const headers = new Headers(init?.headers);
   if (!(init?.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
@@ -155,14 +204,23 @@ async function requestJson<T>(path: string, init?: RequestInit, requiresAuth = f
     const payload = isJson ? ((await response.json()) as ApiEnvelope<T> | ApiErrorPayload) : null;
 
     if (!response.ok) {
+      const apiPayload = payload as ApiErrorPayload | null;
+      if (requiresAuth && allowRefresh && isUnauthorized(response.status, apiPayload?.code)) {
+        await refreshAccessToken();
+        return requestJson<T>(path, init, requiresAuth, false);
+      }
       throw new ApiError((payload as ApiErrorPayload | null)?.message ?? "请求失败", {
-        code: (payload as ApiErrorPayload | null)?.code,
+        code: apiPayload?.code,
         status: response.status
       });
     }
 
     const envelope = payload as ApiEnvelope<T>;
     if (typeof envelope?.code === "number" && envelope.code !== 0) {
+      if (requiresAuth && allowRefresh && isUnauthorized(response.status, envelope.code)) {
+        await refreshAccessToken();
+        return requestJson<T>(path, init, requiresAuth, false);
+      }
       throw new ApiError(envelope.message || "请求失败", {
         code: envelope.code,
         status: response.status
@@ -174,7 +232,7 @@ async function requestJson<T>(path: string, init?: RequestInit, requiresAuth = f
     if (error instanceof ApiError) {
       throw error;
     }
-    throw new ApiError("后端不可用，已回退到本地演示模式", { isNetworkError: true });
+    throw new ApiError("后端不可用，请检查网络连接", { isNetworkError: true });
   }
 }
 
@@ -225,6 +283,13 @@ export function fetchDisguiseConfig(): Promise<DisguiseConfig> {
   });
 }
 
+export async function verifyLuckyNumber(luckyNumber: string): Promise<LuckyNumberVerifyResult> {
+  return requestJson<LuckyNumberVerifyResult>("/system/disguise/verify-lucky-number", {
+    method: "POST",
+    body: JSON.stringify({ luckyNumber })
+  });
+}
+
 export async function sendEmailCode(email: string, bizType: "register" | "login"): Promise<void> {
   await requestJson<void>("/auth/email/send-code", {
     method: "POST",
@@ -260,8 +325,14 @@ export async function loginByPassword(input: {
   };
 }
 
-export async function fetchCurrentUser(): Promise<LocalUser> {
-  return requestJson<LocalUser>("/user/me", { method: "GET" }, true);
+export async function fetchCurrentUser(email?: string): Promise<LocalUser> {
+  const user = await requestJson<UserProfileResponse>("/user/me", { method: "GET" }, true);
+  return {
+    userUid: user.userUid,
+    nickname: user.nickname,
+    email,
+    avatarUrl: user.avatarUrl
+  };
 }
 
 export async function listContacts(): Promise<ContactItem[]> {
@@ -277,6 +348,16 @@ export async function addContact(peerUid: string, remarkName: string): Promise<v
     },
     true
   );
+}
+
+export async function listRecentContacts(limit = 4): Promise<RecentContactItem[]> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  return requestJson<RecentContactItem[]>(`/contact/recent?${params.toString()}`, { method: "GET" }, true);
+}
+
+export async function searchUsers(keyword: string): Promise<UserSearchItem[]> {
+  const params = new URLSearchParams({ keyword });
+  return requestJson<UserSearchItem[]>(`/user/search?${params.toString()}`, { method: "GET" }, true);
 }
 
 export async function listConversations(): Promise<ConversationItem[]> {
@@ -319,7 +400,7 @@ export async function sendMessage(input: {
   conversationId: string;
   receiverUid: string;
   payload: string;
-  messageType?: "text" | "image";
+  messageType?: "text" | "image" | "file";
   payloadType?: "text" | "plain" | "ref" | "encrypted";
   fileId?: string;
   clientMsgTime: number;
@@ -408,6 +489,19 @@ export function createChatWebSocket(accessToken: string): WebSocket {
     : new URL(`${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws/chat`);
   url.searchParams.set("token", accessToken);
   return new WebSocket(url);
+}
+
+// 伪装入口相关 API
+export async function getTodayFortune(): Promise<FortuneToday> {
+  return requestJson<FortuneToday>("/system/fortune/today", {
+    method: "GET"
+  });
+}
+
+export async function getDisguiseConfig(): Promise<DisguiseConfig> {
+  return requestJson<DisguiseConfig>("/system/disguise-config", {
+    method: "GET"
+  });
 }
 
 function resolveUrl(pathOrUrl: string): string {

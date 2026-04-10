@@ -851,10 +851,65 @@ if (jsonData.code === 0) {
 
 * `data.title` 不为空
 * `data.summary` 不为空
+* 传入 `luckyNumber` 时，返回值与请求一致
 
 ---
 
-## 12.2 获取伪装页配置
+## 12.2 校验幸运数字
+
+### 接口
+
+`POST /api/system/disguise/verify-lucky-number`
+
+### 成功用例
+
+请求体：
+
+```json
+{
+  "luckyNumber": "13"
+}
+```
+
+断言：
+
+* HTTP 200
+* `code = 0`
+* `data.matched` 为布尔值
+* `data.nextAction` 为 `ENTER_HIDDEN_ENTRY` 或 `SHOW_FORTUNE`
+* `data.luckyNumber` 等于请求值
+
+### 失败用例 1：参数缺失
+
+请求体：
+
+```json
+{}
+```
+
+断言：
+
+* `code = 400001`
+
+### 失败用例 2：数据库缺失有效 luckyCode 配置
+
+断言：
+
+* `code = 420202`
+* `message` 可识别为配置缺失
+
+### 失败用例 3：校验不命中
+
+断言：
+
+* HTTP 200
+* `code = 0`
+* `data.matched = false`
+* `data.nextAction = SHOW_FORTUNE`
+
+---
+
+## 12.3 获取伪装页配置
 
 ### 接口
 
@@ -1085,15 +1140,15 @@ pm.environment.set("fileId", jsonData.data.fileId);
 如果只跑一轮最小冒烟，建议保留以下 12 个接口/动作：
 
 1. `GET /api/system/fortune/today`
-2. `POST /api/auth/email/send-code`
-3. `POST /api/auth/email/password-login`
-4. `GET /api/user/me`
-5. `GET /api/user/search`
-6. `POST /api/contact/add`
-7. `POST /api/conversation/single`
-8. `GET /api/conversation/list`
-9. `POST /api/file/upload-sign`
-10. `POST /api/file/complete`
+2. `POST /api/system/disguise/verify-lucky-number`
+3. `POST /api/auth/email/send-code`
+4. `POST /api/auth/email/password-login`
+5. `GET /api/user/me`
+6. `GET /api/user/search`
+7. `POST /api/contact/add`
+8. `POST /api/conversation/single`
+9. `GET /api/conversation/list`
+10. `POST /api/file/upload-sign`
 11. WebSocket 发送文本消息
 12. `GET /api/message/history`
 
@@ -1110,5 +1165,4 @@ pm.environment.set("fileId", jsonData.data.fileId);
 * WebSocket 文本消息、图片消息、ACK、重连补偿均通过
 * 所有越权测试均被正确拦截
 * 上传限制与频控符合预期
-
 

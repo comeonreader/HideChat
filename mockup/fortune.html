@@ -30,7 +30,7 @@
           </div>
           <div class="stat">
             <div class="label">幸运数字</div>
-            <div class="value">7</div>
+            <div class="value" id="luckyNumberValue">--</div>
           </div>
           <div class="stat">
             <div class="label">宜做</div>
@@ -81,5 +81,10 @@
       </div>
     </div>
   </div>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const luckyNumber = params.get("luckyNumber") || "13";
+    document.getElementById("luckyNumberValue").textContent = luckyNumber;
+  </script>
 </body>
 </html>

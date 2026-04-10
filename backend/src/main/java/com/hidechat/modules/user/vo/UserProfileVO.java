@@ -8,7 +8,7 @@ import lombok.Setter;
 public class UserProfileVO {
 
     private String userUid;
+    private String displayUserId;
     private String nickname;
     private String avatarUrl;
-    private String email;
 }

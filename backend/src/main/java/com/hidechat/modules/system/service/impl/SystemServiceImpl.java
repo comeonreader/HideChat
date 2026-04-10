@@ -1,10 +1,16 @@
 package com.hidechat.modules.system.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.hidechat.common.exception.BusinessException;
 import com.hidechat.modules.system.service.SystemService;
 import com.hidechat.modules.system.vo.DisguiseConfigVO;
 import com.hidechat.modules.system.vo.FortuneTodayVO;
+import com.hidechat.modules.system.vo.LuckyNumberVerifyVO;
+import com.hidechat.persistence.entity.ImDisguiseLuckyCodeEntity;
+import com.hidechat.persistence.mapper.ImDisguiseLuckyCodeMapper;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
@@ -24,9 +30,11 @@ public class SystemServiceImpl implements SystemService {
         "避免在疲惫时做冲动决定。"
     );
 
+    private final ImDisguiseLuckyCodeMapper disguiseLuckyCodeMapper;
     private final Clock clock;
 
-    public SystemServiceImpl(Clock clock) {
+    public SystemServiceImpl(ImDisguiseLuckyCodeMapper disguiseLuckyCodeMapper, Clock clock) {
+        this.disguiseLuckyCodeMapper = disguiseLuckyCodeMapper;
         this.clock = clock;
     }
 
@@ -49,5 +57,36 @@ public class SystemServiceImpl implements SystemService {
         vo.setShowFortuneInput(Boolean.TRUE);
         vo.setTheme("default");
         return vo;
+    }
+
+    @Override
+    public LuckyNumberVerifyVO verifyLuckyNumber(String luckyNumber) {
+        ImDisguiseLuckyCodeEntity activeCode = getActiveLuckyCode();
+        if (activeCode == null) {
+            throw new BusinessException(420202, "luckyCode 配置缺失");
+        }
+        if (!activeCode.getCodeValue().equals(luckyNumber.trim())) {
+            throw new BusinessException(420201, "luckyCode 校验失败");
+        }
+
+        LuckyNumberVerifyVO vo = new LuckyNumberVerifyVO();
+        vo.setMatched(Boolean.TRUE);
+        return vo;
+    }
+
+    private ImDisguiseLuckyCodeEntity getActiveLuckyCode() {
+        LocalDateTime now = LocalDateTime.now(clock);
+        return disguiseLuckyCodeMapper.selectOne(new LambdaQueryWrapper<ImDisguiseLuckyCodeEntity>()
+            .eq(ImDisguiseLuckyCodeEntity::getStatus, "active")
+            .and(wrapper -> wrapper
+                .isNull(ImDisguiseLuckyCodeEntity::getEffectiveStartAt)
+                .or()
+                .le(ImDisguiseLuckyCodeEntity::getEffectiveStartAt, now))
+            .and(wrapper -> wrapper
+                .isNull(ImDisguiseLuckyCodeEntity::getEffectiveEndAt)
+                .or()
+                .ge(ImDisguiseLuckyCodeEntity::getEffectiveEndAt, now))
+            .orderByDesc(ImDisguiseLuckyCodeEntity::getUpdatedAt)
+            .last("limit 1"));
     }
 }

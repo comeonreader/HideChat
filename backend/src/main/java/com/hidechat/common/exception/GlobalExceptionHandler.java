@@ -4,6 +4,7 @@ import com.hidechat.common.response.ApiResponse;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -18,7 +19,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({
         MethodArgumentNotValidException.class,
         BindException.class,
-        ConstraintViolationException.class
+        ConstraintViolationException.class,
+        MissingServletRequestParameterException.class
     })
     public ApiResponse<Void> handleValidationException(Exception exception) {
         return ApiResponse.failure(400001, "参数错误");

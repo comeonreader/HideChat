@@ -1,47 +1,50 @@
 import { useEffect, useRef, useState } from "react";
+import { DisguiseEntryPage } from "../pages/disguise/DisguiseEntryPage";
 import {
-  ApiError,
   addContact,
   clearConversationUnread,
   clearStoredAuthState,
   createChatWebSocket,
   createSingleConversation,
   fetchCurrentUser,
-  fetchDisguiseConfig,
-  fetchTodayFortune,
   listContacts,
   listConversations,
+  listRecentContacts,
   listMessageHistory,
   loginByPassword,
   markMessagesRead,
   registerByEmail,
+  searchUsers,
   sendEmailCode,
   sendMessage,
   uploadFile
 } from "../api/client";
-import { decryptString, encryptString, sha256Hex } from "../crypto";
-import { loadCachedConversation, saveCachedConversation } from "../storage";
+import { createSecretVerifier, decryptString, encryptString, verifySecret } from "../crypto";
+import { clearCachedConversations, listCachedConversations, loadLocalSecret, saveCachedConversation, saveLocalSecret } from "../storage";
+import {
+  createLocalVaultState,
+  lockLocalVault,
+  syncLocalVaultPinState,
+  touchLocalVault,
+  unlockLocalVault
+} from "../store";
 import type {
   ChatMessage,
   ContactItem,
   ConversationItem,
   FileInfo,
   HiddenSession,
-  LocalUser
+  LocalUser,
+  RecentContactItem,
+  UserSearchItem
 } from "../types";
-import {
-  buildMessagePreview,
-  createDemoContacts,
-  createDemoConversations,
-  createDemoMessages,
-  createMessage
-} from "../utils";
+import { buildMessagePreview, createMessage } from "../utils";
 import "./app.css";
 
-const DEMO_LUCKY_CODE = "2468";
-
 type Screen = "disguise" | "auth" | "chat";
+type PublicView = "lucky" | "fortune";
 type AuthMode = "login" | "register";
+type ChatView = "list" | "conversation" | "add-friend";
 
 interface WsEnvelope {
   type: string;
@@ -55,56 +58,51 @@ interface AuthFormState {
   emailCode: string;
 }
 
+const AUTO_LOCK_IDLE_MS = 2 * 60 * 1000;
+
 export function App() {
   const [screen, setScreen] = useState<Screen>("disguise");
+  const [publicView, setPublicView] = useState<PublicView>("lucky");
+  const [chatView, setChatView] = useState<ChatView>("list");
   const [authMode, setAuthMode] = useState<AuthMode>("login");
-  const [fortune, setFortune] = useState<Awaited<ReturnType<typeof fetchTodayFortune>> | null>(null);
-  const [config, setConfig] = useState<Awaited<ReturnType<typeof fetchDisguiseConfig>> | null>(null);
-  const [luckyCodeInput, setLuckyCodeInput] = useState("");
   const [pinInput, setPinInput] = useState("");
-  const [luckyCodeHash, setLuckyCodeHash] = useState("");
   const [session, setSession] = useState<HiddenSession | null>(null);
-  const [contacts, setContacts] = useState<ContactItem[]>(createDemoContacts());
-  const [conversations, setConversations] = useState<ConversationItem[]>(createDemoConversations());
-  const [messages, setMessages] = useState<Record<string, ChatMessage[]>>(createDemoMessages());
-  const [activeConversationId, setActiveConversationId] = useState<string>("c_demo_1");
+  const [vaultState, setVaultState] = useState(() => createLocalVaultState(false));
+  const [contacts, setContacts] = useState<ContactItem[]>([]);
+  const [recentContacts, setRecentContacts] = useState<RecentContactItem[]>([]);
+  const [conversations, setConversations] = useState<ConversationItem[]>([]);
+  const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({});
+  const [activeConversationId, setActiveConversationId] = useState<string>("");
   const [composer, setComposer] = useState("");
   const [statusText, setStatusText] = useState("运势页已加载，输入幸运数字进入隐藏入口。");
   const [authLoading, setAuthLoading] = useState(false);
   const [sendCodeLoading, setSendCodeLoading] = useState(false);
+  const [searchingUsers, setSearchingUsers] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [contactForm, setContactForm] = useState({ peerUid: "", remarkName: "" });
+  const [chatSearchQuery, setChatSearchQuery] = useState("");
+  const [friendSearchQuery, setFriendSearchQuery] = useState("");
+  const [userSearchResults, setUserSearchResults] = useState<UserSearchItem[]>([]);
   const [authForm, setAuthForm] = useState<AuthFormState>({
-    email: "demo@hide.chat",
-    nickname: "Reader",
-    password: "reader123",
+    email: "",
+    nickname: "",
+    password: "",
     emailCode: ""
   });
 
   const wsRef = useRef<WebSocket | null>(null);
+  const autoLockTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    void (async () => {
-      const [fortuneData, disguiseData, hash] = await Promise.all([
-        fetchTodayFortune(),
-        fetchDisguiseConfig(),
-        sha256Hex(DEMO_LUCKY_CODE)
-      ]);
-      setFortune(fortuneData);
-      setConfig(disguiseData);
-      setLuckyCodeHash(hash);
-    })();
-  }, []);
-
-  useEffect(() => {
-    if (!session?.pin || screen !== "chat") {
+    if (!session?.pin || !session.pinKdfParams || !vaultState.isUnlocked) {
       return;
     }
     const pin = session.pin;
+    const pinKdfParams = session.pinKdfParams;
     void (async () => {
       const entries = Object.entries(messages);
       for (const [conversationId, items] of entries) {
-        const encryptedPayload = await encryptString(pin, JSON.stringify(items));
+        const encryptedPayload = await encryptString(pin, JSON.stringify(items), pinKdfParams);
         await saveCachedConversation({
           conversationId,
           encryptedPayload,
@@ -112,10 +110,10 @@ export function App() {
         });
       }
     })();
-  }, [messages, screen, session]);
+  }, [messages, session, vaultState.isUnlocked]);
 
   useEffect(() => {
-    if (session?.mode !== "backend" || !session.tokens?.accessToken || screen !== "chat") {
+    if (!session?.tokens?.accessToken || screen !== "chat" || !vaultState.isUnlocked) {
       closeWebSocket();
       return;
     }
@@ -158,20 +156,98 @@ export function App() {
       }
       socket.close();
     };
-  }, [screen, session]);
+  }, [screen, session, vaultState.isUnlocked]);
 
   useEffect(() => {
-    if (!session || screen !== "chat" || session.mode !== "backend" || !activeConversationId) {
+    if (autoLockTimerRef.current !== null) {
+      window.clearTimeout(autoLockTimerRef.current);
+      autoLockTimerRef.current = null;
+    }
+
+    if (!vaultState.isUnlocked || !vaultState.expiresAt) {
+      return;
+    }
+
+    const timeout = Math.max(vaultState.expiresAt - Date.now(), 0);
+    autoLockTimerRef.current = window.setTimeout(() => {
+      handleVaultLock("idle", "聊天已因长时间无操作自动锁定。");
+    }, timeout);
+
+    return () => {
+      if (autoLockTimerRef.current !== null) {
+        window.clearTimeout(autoLockTimerRef.current);
+        autoLockTimerRef.current = null;
+      }
+    };
+  }, [vaultState.expiresAt, vaultState.isUnlocked]);
+
+  useEffect(() => {
+    if (!vaultState.isUnlocked) {
+      return;
+    }
+
+    const markActivity = () => {
+      setVaultState((prev) => touchLocalVault(prev, AUTO_LOCK_IDLE_MS));
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        handleVaultLock("hidden", "聊天已在页面切换后自动锁定。");
+        return;
+      }
+      markActivity();
+    };
+
+    window.addEventListener("pointerdown", markActivity);
+    window.addEventListener("keydown", markActivity);
+    window.addEventListener("focus", markActivity);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("pointerdown", markActivity);
+      window.removeEventListener("keydown", markActivity);
+      window.removeEventListener("focus", markActivity);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [vaultState.isUnlocked]);
+
+  useEffect(() => {
+    if (!session || screen !== "chat" || !activeConversationId || !vaultState.isUnlocked) {
       return;
     }
     void clearConversationUnread(activeConversationId).catch(() => undefined);
-  }, [activeConversationId, screen, session]);
+  }, [activeConversationId, screen, session, vaultState.isUnlocked]);
 
   const activeConversation = conversations.find((item) => item.conversationId === activeConversationId) ?? conversations[0];
   const currentMessages = activeConversation ? messages[activeConversation.conversationId] ?? [] : [];
+  const filteredConversations = conversations.filter((conversation) => {
+    if (chatView === "conversation") {
+      return true;
+    }
+    if (!chatSearchQuery.trim()) {
+      return true;
+    }
+    const keyword = chatSearchQuery.trim().toLowerCase();
+    return [conversation.remarkName, conversation.peerNickname, conversation.peerUid].some((value) =>
+      (value ?? "").toLowerCase().includes(keyword)
+    );
+  });
+  const selectedContact =
+    contacts.find((contact) => contact.peerUid === activeConversation?.peerUid) ??
+    (activeConversation
+      ? {
+          peerUid: activeConversation.peerUid,
+          peerNickname: activeConversation.peerNickname ?? activeConversation.remarkName,
+          remarkName: activeConversation.remarkName,
+          lastMessageAt: activeConversation.lastMessageAt
+        }
+      : null);
+  const visibleMessages =
+    chatView === "conversation" && chatSearchQuery.trim()
+      ? currentMessages.filter((message) => matchesMessageSearch(message, chatSearchQuery))
+      : currentMessages;
 
   useEffect(() => {
-    if (!session || session.mode !== "backend" || screen !== "chat" || !activeConversation) {
+    if (!session || screen !== "chat" || !activeConversation || !vaultState.isUnlocked) {
       return;
     }
     const unreadMessageIds = currentMessages
@@ -181,22 +257,7 @@ export function App() {
       return;
     }
     void syncReadState(activeConversation.conversationId, unreadMessageIds);
-  }, [activeConversation, currentMessages, screen, session]);
-
-  async function handleLuckyCodeSubmit() {
-    const inputHash = await sha256Hex(luckyCodeInput.trim());
-    if (inputHash !== luckyCodeHash) {
-      setStatusText("幸运数字不匹配，继续展示正常运势内容。");
-      setLuckyCodeInput("");
-      return;
-    }
-    if (!session?.pinHash) {
-      setStatusText("幸运数字通过，先登录或注册，再设置 PIN 用于本地加密缓存。");
-    } else {
-      setStatusText("幸运数字通过，请输入 PIN 解锁本地加密消息。");
-    }
-    setScreen("auth");
-  }
+  }, [activeConversation, currentMessages, screen, session, vaultState.isUnlocked]);
 
   async function handlePinContinue() {
     const trimmedPin = pinInput.trim();
@@ -204,35 +265,29 @@ export function App() {
       setStatusText("PIN 不能为空。");
       return;
     }
-    if (!session?.pinHash) {
+    if (!session?.pinVerifierHash || !session.pinKdfParams) {
       setStatusText("请先完成登录或注册，再设置 PIN。");
       return;
     }
 
-    const candidateHash = await sha256Hex(trimmedPin);
-    if (candidateHash !== session.pinHash) {
+    const isValid = await verifySecret(trimmedPin, {
+      verifierHash: session.pinVerifierHash,
+      kdfParams: session.pinKdfParams
+    });
+    if (!isValid) {
       setStatusText("PIN 不正确，仍停留在伪装入口。");
       setPinInput("");
       setScreen("disguise");
+      setPublicView("lucky");
       return;
     }
 
-    const restored = await loadCachedConversation(activeConversationId);
-    if (restored) {
-      try {
-        const decoded = await decryptString(trimmedPin, restored.encryptedPayload);
-        setMessages((prev) => ({
-          ...prev,
-          [activeConversationId]: JSON.parse(decoded) as ChatMessage[]
-        }));
-      } catch {
-        setStatusText("本地缓存解密失败，已回退到当前内存消息。");
-      }
-    }
-
+    await hydrateMessagesAfterUnlock(trimmedPin, session.pinKdfParams);
     setSession((prev) => (prev ? { ...prev, pin: trimmedPin } : prev));
+    setVaultState((prev) => unlockLocalVault(prev, AUTO_LOCK_IDLE_MS));
     setStatusText("PIN 校验通过，已恢复隐藏聊天界面。");
     setScreen("chat");
+    setChatView(activeConversationId ? "conversation" : "list");
   }
 
   async function handleAuthSubmit() {
@@ -253,21 +308,10 @@ export function App() {
       });
       await finishAuthentication({
         ...loginResult,
-        user: await fetchCurrentUser().catch(() => loginResult.user)
+        user: await fetchCurrentUser(loginResult.user.email).catch(() => loginResult.user)
       });
       setStatusText("已连接后端账号，请继续设置或输入 PIN。");
     } catch (error) {
-      if (error instanceof ApiError && (error.isNetworkError || error.status === 404 || error.status === 502 || error.status === 503)) {
-        const demoUser = buildDemoUser(authForm.nickname, authForm.email);
-        setSession((prev) => ({
-          user: demoUser,
-          pin: prev?.pin,
-          pinHash: prev?.pinHash ?? "",
-          mode: "demo"
-        }));
-        setStatusText("后端不可用，已回退到本地演示模式。继续设置 PIN 即可进入聊天。");
-        return;
-      }
       setStatusText(error instanceof Error ? error.message : "登录失败");
     } finally {
       setAuthLoading(false);
@@ -278,7 +322,7 @@ export function App() {
     setSendCodeLoading(true);
     try {
       await sendEmailCode(authForm.email.trim(), authMode === "register" ? "register" : "login");
-      setStatusText("验证码已发送，请查看后端日志中的验证码。");
+      setStatusText("验证码已发送，请查看测试邮件服务（http://localhost:8025）中的验证码。");
     } catch (error) {
       setStatusText(error instanceof Error ? error.message : "发送验证码失败");
     } finally {
@@ -296,29 +340,59 @@ export function App() {
       setStatusText("PIN 不能为空。");
       return;
     }
-    const pinHash = await sha256Hex(trimmedPin);
-    setSession((prev) => (prev ? { ...prev, pin: trimmedPin, pinHash } : prev));
+    const verifier = await createSecretVerifier(trimmedPin);
+    await saveLocalSecret({
+      key: buildPinSecretKey(session.user.userUid),
+      verifierHash: verifier.verifierHash,
+      salt: verifier.salt,
+      kdfParams: verifier.kdfParams,
+      createdAt: verifier.createdAt,
+      updatedAt: verifier.updatedAt
+    });
+    setSession((prev) =>
+      prev
+        ? {
+            ...prev,
+            pin: trimmedPin,
+            pinVerifierHash: verifier.verifierHash,
+            pinSalt: verifier.salt,
+            pinKdfParams: verifier.kdfParams
+          }
+        : prev
+    );
+    setVaultState((prev) => unlockLocalVault(syncLocalVaultPinState(prev, true), AUTO_LOCK_IDLE_MS));
+    await hydrateMessagesAfterUnlock(trimmedPin, verifier.kdfParams);
     setStatusText("PIN 已设置，本地缓存会以加密形式写入 IndexedDB。");
     setScreen("chat");
+    setChatView(activeConversationId ? "conversation" : "list");
   }
 
-  async function handleAddContact() {
-    if (!session || session.mode !== "backend") {
-      setStatusText("演示模式不支持真实联系人写入。");
+  async function handleAddContact(peerUid?: string) {
+    if (!session) {
+      setStatusText("请先登录。");
       return;
     }
-    if (!contactForm.peerUid.trim()) {
+    const targetPeerUid = (peerUid ?? contactForm.peerUid).trim();
+    if (!targetPeerUid) {
       setStatusText("请输入联系人 UID。");
       return;
     }
     try {
-      await addContact(contactForm.peerUid.trim(), contactForm.remarkName.trim());
-      const conversation = await createSingleConversation(contactForm.peerUid.trim());
-      const [nextContacts, nextConversations] = await Promise.all([listContacts(), listConversations()]);
+      await addContact(targetPeerUid, contactForm.remarkName.trim());
+      const conversation = await createSingleConversation(targetPeerUid);
+      const [nextContacts, nextConversations, nextRecentContacts] = await Promise.all([
+        listContacts(),
+        listConversations(),
+        listRecentContacts(4).catch(() => [])
+      ]);
       setContacts(sortContacts(nextContacts));
+      setRecentContacts(sortRecentContacts(nextRecentContacts));
       setConversations(sortConversations(nextConversations));
       setActiveConversationId(conversation.conversationId);
       setContactForm({ peerUid: "", remarkName: "" });
+      setFriendSearchQuery("");
+      setUserSearchResults([]);
+      setChatView("conversation");
       setStatusText("联系人已添加，并创建了单聊会话。");
     } catch (error) {
       setStatusText(error instanceof Error ? error.message : "添加联系人失败");
@@ -345,23 +419,19 @@ export function App() {
     if (!file || !activeConversation || !session) {
       return;
     }
-    if (session.mode !== "backend") {
-      setStatusText("演示模式不支持真实文件上传。");
-      return;
-    }
-
     setUploadingFile(true);
     try {
       const uploaded = await uploadFile(file);
+      const messageType = resolveFileMessageType(uploaded.mimeType);
       await dispatchOutgoingMessage({
         conversationId: activeConversation.conversationId,
         receiverUid: activeConversation.peerUid,
-        messageType: "image",
+        messageType,
         payloadType: "ref",
-        payload: buildImagePayload(uploaded),
+        payload: buildFilePayload(uploaded),
         fileId: uploaded.fileId
       });
-      setStatusText(`文件 ${file.name} 已上传，并作为图片消息发送。`);
+      setStatusText(`文件 ${file.name} 已上传，并作为${messageType === "image" ? "图片" : "文件"}消息发送。`);
     } catch (error) {
       setStatusText(error instanceof Error ? error.message : "文件上传失败");
     } finally {
@@ -373,7 +443,7 @@ export function App() {
     conversationId: string;
     receiverUid: string;
     payload: string;
-    messageType: "text" | "image";
+    messageType: "text" | "image" | "file";
     payloadType: "text" | "ref";
     fileId?: string;
   }) {
@@ -390,12 +460,6 @@ export function App() {
       payloadType: input.payloadType,
       fileId: input.fileId
     });
-
-    if (session.mode !== "backend") {
-      applyIncomingMessage(optimisticMessage);
-      setStatusText("消息已发送，并写入本地加密缓存。");
-      return;
-    }
 
     applyIncomingMessage(optimisticMessage);
     const socket = wsRef.current;
@@ -416,7 +480,13 @@ export function App() {
           }
         })
       );
-      setStatusText(input.messageType === "image" ? "图片消息已通过 WebSocket 发出。" : "消息已通过 WebSocket 发出。");
+      setStatusText(
+        input.messageType === "image"
+          ? "图片消息已通过 WebSocket 发出。"
+          : input.messageType === "file"
+            ? "文件消息已通过 WebSocket 发出。"
+            : "消息已通过 WebSocket 发出。"
+      );
       return;
     }
 
@@ -539,10 +609,20 @@ export function App() {
   }
 
   function handleLock() {
+    handleVaultLock("manual", "已返回伪装入口。");
+  }
+
+  function handleVaultLock(reason: "manual" | "idle" | "hidden", nextStatus: string) {
     closeWebSocket();
+    setVaultState((prev) => lockLocalVault(prev, reason));
+    setSession((prev) => (prev ? { ...prev, pin: undefined } : prev));
+    setMessages({});
+    setComposer("");
     setScreen("disguise");
+    setPublicView("lucky");
+    setChatView("list");
     setPinInput("");
-    setStatusText("已返回伪装入口。");
+    setStatusText(nextStatus);
   }
 
   function closeWebSocket() {
@@ -553,77 +633,136 @@ export function App() {
   }
 
   async function finishAuthentication(input: { user: LocalUser; tokens: HiddenSession["tokens"] }) {
+    const storedPinSecret = await loadLocalSecret(buildPinSecretKey(input.user.userUid));
+    const hasStoredPin = Boolean(storedPinSecret?.verifierHash && storedPinSecret.kdfParams);
     setSession((prev) => ({
       user: input.user,
       tokens: input.tokens,
-      pin: prev?.pin,
-      pinHash: prev?.pinHash ?? "",
-      mode: "backend"
+      pin: undefined,
+      pinVerifierHash: storedPinSecret?.verifierHash,
+      pinSalt: storedPinSecret?.salt,
+      pinKdfParams: storedPinSecret?.kdfParams
     }));
+    setVaultState((prev) => syncLocalVaultPinState(lockLocalVault(prev, "manual"), hasStoredPin));
 
-    const nextContacts = await listContacts();
-    const nextConversations = await listConversations();
-    const historyEntries = await Promise.all(
-      nextConversations.map(async (conversation) => [conversation.conversationId, await listMessageHistory(conversation.conversationId)] as const)
-    );
+    const [nextContacts, nextConversations, nextRecentContacts] = await Promise.all([
+      listContacts(),
+      listConversations(),
+      listRecentContacts(4).catch(() => [])
+    ]);
 
     setContacts(sortContacts(nextContacts));
+    setRecentContacts(sortRecentContacts(nextRecentContacts));
     setConversations(sortConversations(nextConversations));
-    setMessages(Object.fromEntries(historyEntries));
+    setMessages({});
     setActiveConversationId(nextConversations[0]?.conversationId ?? "");
+    setScreen("auth");
+  }
+
+  async function hydrateMessagesAfterUnlock(pin: string, kdfParams: HiddenSession["pinKdfParams"]) {
+    if (!kdfParams) {
+      return;
+    }
+
+    const cachedRecords = await listCachedConversations();
+    const restoredEntries = await Promise.all(
+      cachedRecords.map(async (record) => {
+        try {
+          const decoded = await decryptString(pin, record.encryptedPayload, kdfParams);
+          return [record.conversationId, JSON.parse(decoded) as ChatMessage[]] as const;
+        } catch {
+          return null;
+        }
+      })
+    );
+
+    const restoredMessages = Object.fromEntries(
+      restoredEntries.filter((entry): entry is readonly [string, ChatMessage[]] => entry !== null)
+    );
+    const missingHistoryEntries = await Promise.all(
+      conversations
+        .filter((conversation) => !restoredMessages[conversation.conversationId])
+        .map(async (conversation) => [conversation.conversationId, await listMessageHistory(conversation.conversationId)] as const)
+    );
+
+    setMessages({
+      ...Object.fromEntries(missingHistoryEntries),
+      ...restoredMessages
+    });
+  }
+
+  function openConversation(conversationId: string) {
+    setActiveConversationId(conversationId);
+    setChatView("conversation");
+  }
+
+  async function handleFriendSearch() {
+    const keyword = friendSearchQuery.trim();
+    if (!session) {
+      setStatusText("请先登录后再搜索用户。");
+      return;
+    }
+    if (!keyword) {
+      setUserSearchResults([]);
+      setStatusText("请输入昵称或用户 ID。");
+      return;
+    }
+    setSearchingUsers(true);
+    try {
+      const results = await searchUsers(keyword);
+      setUserSearchResults(results);
+      setStatusText(results.length > 0 ? `已找到 ${results.length} 个匹配用户。` : "未找到匹配的用户。");
+    } catch (error) {
+      setUserSearchResults([]);
+      setStatusText(error instanceof Error ? error.message : "搜索用户失败");
+    } finally {
+      setSearchingUsers(false);
+    }
   }
 
   return (
-    <main className="shell">
-      <section className="hero">
-        <div className="hero__badge">HideChat Privacy Workspace</div>
-        <h1>{config?.siteTitle ?? "今日运势"}</h1>
-        <p>
-          伪装入口、PIN 解锁、联系人、会话、文本消息和 WebSocket 实时收消息都在这一页闭合。
-          后端不可用时会自动回退到本地演示模式。
-        </p>
+    <main className={screen === "chat" ? "app-root app-root--chat" : "app-root"}>
+      {screen === "disguise" && renderPublicView()}
+      {screen === "auth" && renderAuthView()}
+      {screen === "chat" && session && renderChatShell()}
+      <section className="status-strip">
+        <strong>状态</strong>
+        <span>{statusText}</span>
       </section>
+    </main>
+  );
 
-      {screen === "disguise" && (
-        <section className="panel panel--fortune">
-          <div className="fortune-card">
-            <span className="fortune-card__tag">伪装入口</span>
-            <h2>{fortune?.title ?? "今日运势"}</h2>
-            <p className="fortune-card__summary">{fortune?.summary ?? "正在整理今日运势..."}</p>
-            <div className="fortune-grid">
-              <div>
-                <span>幸运色</span>
-                <strong>{fortune?.luckyColor ?? "蓝色"}</strong>
-              </div>
-              <div>
-                <span>幸运方位</span>
-                <strong>{fortune?.luckyDirection ?? "东南"}</strong>
-              </div>
-              <div className="fortune-grid__wide">
-                <span>建议</span>
-                <strong>{fortune?.advice ?? "在重要对话中保持耐心。"}</strong>
-              </div>
-            </div>
+  function renderPublicView() {
+    return (
+      <DisguiseEntryPage
+        onLuckyNumberVerified={() => {
+          if (session?.tokens?.accessToken && session?.pin && vaultState.isUnlocked) {
+            setScreen("chat");
+          } else {
+            setScreen("auth");
+          }
+        }}
+        onSwitchToFortune={() => setPublicView("fortune")}
+        initialView={publicView}
+      />
+    );
+  }
+
+  function renderAuthView() {
+    return (
+      <div className="page auth-page">
+        <div className="topbar">
+          <div>
+            <div className="title">隐藏入口验证</div>
+            <div className="muted">完成账号登录后设置或输入 PIN，继续进入加密聊天。</div>
           </div>
+          <button className="btn ghost" type="button" onClick={() => setScreen("disguise")}>
+            返回运势页
+          </button>
+        </div>
 
-          <div className="entry-card">
-            <label htmlFor="lucky-code">幸运数字</label>
-            <input
-              id="lucky-code"
-              value={luckyCodeInput}
-              onChange={(event) => setLuckyCodeInput(event.target.value)}
-              placeholder="输入幸运数字"
-            />
-            <button type="button" onClick={() => void handleLuckyCodeSubmit()}>
-              进入隐藏入口
-            </button>
-          </div>
-        </section>
-      )}
-
-      {screen === "auth" && (
-        <section className="panel panel--auth">
-          <div className="auth-card">
+        <div className="auth-layout">
+          <section className="card result-card auth-card-panel">
             <div className="tabs">
               <button
                 className={authMode === "login" ? "is-active" : ""}
@@ -667,190 +806,437 @@ export function App() {
               )}
             </div>
 
-            {authMode === "register" && (
-              <button type="button" onClick={() => void handleSendCode()} disabled={sendCodeLoading}>
-                {sendCodeLoading ? "发送中..." : "发送验证码"}
+            <div className="auth-actions">
+              {authMode === "register" && (
+                <button className="btn ghost" type="button" onClick={() => void handleSendCode()} disabled={sendCodeLoading}>
+                  {sendCodeLoading ? "发送中..." : "发送验证码"}
+                </button>
+              )}
+              <button className="btn btn-brand" type="button" onClick={() => void handleAuthSubmit()} disabled={authLoading}>
+                {authLoading ? "处理中..." : authMode === "login" ? "使用当前信息进入" : "注册并进入"}
               </button>
-            )}
+            </div>
+          </section>
 
-            <button type="button" onClick={() => void handleAuthSubmit()} disabled={authLoading}>
-              {authLoading ? "处理中..." : authMode === "login" ? "使用当前信息进入" : "注册并进入"}
-            </button>
-          </div>
-
-          <div className="pin-card">
-            <label htmlFor="pin-input">PIN 解锁</label>
-            <input
-              id="pin-input"
-              type="password"
-              value={pinInput}
-              onChange={(event) => setPinInput(event.target.value)}
-              placeholder={session?.pinHash ? "输入已有 PIN" : "设置一个新的 PIN"}
-            />
+          <aside className="card result-card auth-side-panel">
+            <div className="section-title">PIN 解锁</div>
+            <div className="section-text">
+              {session?.pinVerifierHash
+                ? "PIN 只用于解锁本地加密缓存。解锁后会恢复历史消息，并在闲置后自动重新锁定。"
+                : "PIN 只用于本地加密缓存解锁，不会显示在会话列表或公开界面。"}
+            </div>
+            <div className="fields">
+              <input
+                id="pin-input"
+                type="password"
+                aria-label="PIN 解锁"
+                value={pinInput}
+                onChange={(event) => setPinInput(event.target.value)}
+                placeholder={session?.pinVerifierHash ? "输入已有 PIN" : "设置一个新的 PIN"}
+              />
+            </div>
             <button
+              className="btn btn-brand auth-submit"
               type="button"
-              onClick={() => void (session?.pinHash ? handlePinContinue() : handleSetPinAndEnter())}
+              onClick={() => void (session?.pinVerifierHash ? handlePinContinue() : handleSetPinAndEnter())}
+              disabled={!session?.tokens && !session?.user}
             >
-              {session?.pinHash ? "解锁消息缓存" : "设置 PIN 并继续"}
+              {session?.pinVerifierHash ? "解锁消息缓存" : "设置 PIN 并继续"}
+            </button>
+          </aside>
+        </div>
+      </div>
+    );
+  }
+
+  function renderChatShell() {
+    const isConversationView = chatView === "conversation" && Boolean(activeConversation);
+    return (
+      <div className={isConversationView ? "chat-page" : ""}>
+        <div className={isConversationView ? "chat-shell" : "wechat-layout"}>
+          {renderSidebar(isConversationView)}
+          {chatView === "add-friend" ? renderAddFriendPage() : isConversationView ? renderConversationPage() : renderChatListPage()}
+        </div>
+      </div>
+    );
+  }
+
+  function renderSidebar(inConversationLayout: boolean) {
+    return (
+      <aside className="sidebar">
+        <div className="sidebar-inner">
+          <div className="wechat-header">
+            <div className="topbar topbar-tight">
+              <div className="title title-chat">聊天</div>
+              <button className="tag tag-button" type="button" onClick={() => setChatView("add-friend")}>
+                {inConversationLayout ? "添加好友" : "搜索 / 添加好友"}
+              </button>
+            </div>
+            <div className="search-box">
+              <span>🔍</span>
+              <input
+                value={chatSearchQuery}
+                onChange={(event) => setChatSearchQuery(event.target.value)}
+                placeholder={inConversationLayout ? "搜索聊天记录" : "搜索"}
+              />
+            </div>
+          </div>
+
+          <ul className="list">
+            {filteredConversations.length === 0 && (
+              <li className="chat-item">
+                <div className="chat-main">
+                  <div className="preview">没有匹配的会话</div>
+                </div>
+              </li>
+            )}
+            {filteredConversations.map((conversation) => (
+              <li
+                key={conversation.conversationId}
+                className={conversation.conversationId === activeConversation?.conversationId ? "chat-item active" : "chat-item"}
+              >
+                <button className="chat-item-button" type="button" onClick={() => openConversation(conversation.conversationId)}>
+                  <div className="avatar">{getAvatarLabel(conversation.remarkName || conversation.peerNickname || conversation.peerUid)}</div>
+                  <div className="chat-main">
+                    <div className="chat-row">
+                      <div className="name">{conversation.remarkName || conversation.peerNickname || conversation.peerUid}</div>
+                      <div className="time">{formatMessageTime(conversation.lastMessageAt)}</div>
+                    </div>
+                    <div className="preview">{getMaskedConversationPreview(conversation)}</div>
+                  </div>
+                  {(conversation.unreadCount ?? 0) > 0 && <span className="count">{conversation.unreadCount}</span>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <nav className="mobile-nav">
+          <button type="button" className={chatView === "list" ? "is-active" : ""} onClick={() => setChatView("list")}>
+            💬
+            <span>聊天</span>
+          </button>
+          <button type="button" className={chatView === "add-friend" ? "is-active" : ""} onClick={() => setChatView("add-friend")}>
+            👤
+            <span>好友</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setScreen("disguise");
+              setPublicView("fortune");
+            }}
+          >
+            ✨
+            <span>运势</span>
+          </button>
+        </nav>
+      </aside>
+    );
+  }
+
+  function renderChatListPage() {
+    return (
+      <main className="main-panel">
+        <div className="panel-header">
+          <div>
+            <div className="name header-name">{activeConversation?.remarkName || activeConversation?.peerNickname || "最近联系人"}</div>
+            <div className="muted">
+              {activeConversation ? `${selectedContact?.peerNickname ?? "联系人"} 在线状态受保护 · ${(activeConversation.unreadCount ?? 0)} 条未读` : "选择左侧会话进入聊天"}
+            </div>
+          </div>
+          <button
+            className="btn ghost"
+            type="button"
+            onClick={() => {
+              if (activeConversation) {
+                setChatView("conversation");
+              }
+            }}
+            disabled={!activeConversation}
+          >
+            进入聊天
+          </button>
+        </div>
+        <div className="empty-panel">
+          <div className="empty-card">
+            <div className="empty-illustration" />
+            <div className="section-title">像微信一样熟悉的聊天列表</div>
+            <div className="section-text">
+              左侧展示最近联系人与未读消息，手机端会自动切换为单列布局。所有会话预览已脱敏处理，只显示消息类型占位。
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  function renderConversationPage() {
+    const currentSession = session;
+    if (!currentSession) {
+      return null;
+    }
+    return (
+      <main className="conv-area">
+        <div className="panel-header">
+          <div>
+            <div className="name header-name">{activeConversation?.remarkName || activeConversation?.peerNickname || "选择一个会话"}</div>
+            <div className="muted">
+              {currentSession.pinVerifierHash ? "工作日 09:00 - 22:00 活跃 · 本地加密缓存已启用" : "工作日 09:00 - 22:00 活跃"}
+            </div>
+          </div>
+          <div className="panel-header-actions">
+            <span className="tag">支持发送文件</span>
+            <button className="btn ghost" type="button" onClick={() => setChatView("list")}>
+              返回列表
+            </button>
+            <button className="btn ghost" type="button" onClick={handleLock}>
+              返回伪装页
+            </button>
+            <button
+              className="btn ghost"
+              type="button"
+              onClick={() => {
+                clearStoredAuthState();
+                void clearCachedConversations();
+                setVaultState(createLocalVaultState(false));
+                setSession(null);
+                setContacts([]);
+                setRecentContacts([]);
+                setConversations([]);
+                setMessages({});
+                setActiveConversationId("");
+                setScreen("disguise");
+                setPublicView("lucky");
+                setStatusText("已退出当前账号。");
+              }}
+            >
+              退出账号
             </button>
           </div>
-        </section>
-      )}
+        </div>
 
-      {screen === "chat" && session && (
-        <section className="workspace">
-          <aside className="sidebar">
-            {session.mode === "backend" && (
-              <div className="sidebar__section">
-                <span className="sidebar__title">新增联系人</span>
+        <div className="messages">
+          {visibleMessages.length > 0 && <div className="day-divider">{formatConversationDivider(visibleMessages[0].serverMsgTime)}</div>}
+          {visibleMessages.map((message) => renderMessageRow(message))}
+          {activeConversation && currentMessages.length === 0 && (
+            <div className="msg other">
+              <div className="bubble">暂无消息</div>
+            </div>
+          )}
+          {activeConversation && currentMessages.length > 0 && visibleMessages.length === 0 && (
+            <div className="msg other">
+              <div className="bubble">没有匹配的聊天记录</div>
+            </div>
+          )}
+        </div>
+
+        <div className="input-bar">
+          <div className="toolbar">
+            <button className="icon-btn" type="button" title="表情">
+              😊
+            </button>
+            <label className="icon-btn icon-upload" title="发送图片">
+              🖼️
+              <input
+                type="file"
+                aria-label="发送图片"
+                accept="image/*"
+                disabled={!activeConversation || uploadingFile}
+                onChange={(event) => {
+                  const selected = event.target.files?.[0] ?? null;
+                  event.currentTarget.value = "";
+                  void handleFileSelected(selected);
+                }}
+              />
+            </label>
+            <label className="icon-btn icon-upload" title="发送文件">
+              📎
+              <input
+                type="file"
+                aria-label="发送文件"
+                disabled={!activeConversation || uploadingFile}
+                onChange={(event) => {
+                  const selected = event.target.files?.[0] ?? null;
+                  event.currentTarget.value = "";
+                  void handleFileSelected(selected);
+                }}
+              />
+            </label>
+            <button className="icon-btn" type="button" title="更多">
+              ＋
+            </button>
+          </div>
+          <div className="composer composer-bar">
+            <textarea
+              aria-label="消息输入框"
+              value={composer}
+              onChange={(event) => setComposer(event.target.value)}
+              placeholder="输入消息..."
+              disabled={!activeConversation}
+            />
+            <button className="btn btn-brand send-btn" type="button" onClick={() => void handleSendMessage()} disabled={!activeConversation}>
+              发送
+            </button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  function renderAddFriendPage() {
+    return (
+      <main className="main-panel search-page-wrap">
+        <div className="page search-page">
+          <div className="topbar">
+            <div>
+              <div className="title">搜索 / 添加好友</div>
+              <div className="muted">支持昵称、用户 ID 搜索</div>
+            </div>
+            <button className="btn ghost" type="button" onClick={() => setChatView("list")}>
+              返回聊天
+            </button>
+          </div>
+
+          <div className="search-layout">
+            <section className="card result-card">
+              <div className="search-box search-box-action">
+                <span>🔎</span>
                 <input
-                  value={contactForm.peerUid}
-                  onChange={(event) => setContactForm((prev) => ({ ...prev, peerUid: event.target.value }))}
-                  placeholder="联系人 UID"
+                  value={friendSearchQuery}
+                  onChange={(event) => setFriendSearchQuery(event.target.value)}
+                  placeholder="输入昵称或用户 ID"
                 />
+                <button className="btn btn-brand" type="button" onClick={() => void handleFriendSearch()} disabled={searchingUsers}>
+                  {searchingUsers ? "搜索中..." : "搜索"}
+                </button>
+              </div>
+
+              <div className="inline-fields">
                 <input
                   value={contactForm.remarkName}
                   onChange={(event) => setContactForm((prev) => ({ ...prev, remarkName: event.target.value }))}
                   placeholder="备注名（可选）"
                 />
-                <button type="button" onClick={() => void handleAddContact()}>
-                  添加联系人
-                </button>
               </div>
-            )}
 
-            <div className="sidebar__section">
-              <span className="sidebar__title">联系人</span>
-              {contacts.length === 0 && <span className="list-empty">暂无联系人</span>}
-              {contacts.map((contact) => (
-                <button
-                  key={contact.peerUid}
-                  className={contact.peerUid === activeConversation?.peerUid ? "list-item is-active" : "list-item"}
-                  type="button"
-                  onClick={() => {
-                    const nextConversation = conversations.find((item) => item.peerUid === contact.peerUid);
-                    if (nextConversation) {
-                      setActiveConversationId(nextConversation.conversationId);
-                    }
-                  }}
-                >
-                  <strong>{contact.remarkName || contact.peerNickname}</strong>
-                  <span>{contact.peerUid}</span>
-                </button>
-              ))}
-            </div>
+              <div className="section-title">搜索结果</div>
 
-            <div className="sidebar__section">
-              <span className="sidebar__title">会话</span>
-              {conversations.length === 0 && <span className="list-empty">暂无会话</span>}
-              {conversations.map((conversation) => (
-                <button
-                  key={conversation.conversationId}
-                  className={conversation.conversationId === activeConversation?.conversationId ? "list-item is-active" : "list-item"}
-                  type="button"
-                  onClick={() => setActiveConversationId(conversation.conversationId)}
-                >
-                  <strong>{conversation.remarkName || conversation.peerNickname}</strong>
-                  <span>{conversation.lastMessagePreview || "暂无消息"}</span>
-                </button>
-              ))}
-            </div>
-          </aside>
+              {userSearchResults.length > 0 ? (
+                userSearchResults.map((result) => (
+                  <div key={result.userUid} className="user-row">
+                    <div className="avatar">{getAvatarLabel(result.nickname || result.displayUserId)}</div>
+                    <div className="user-meta">
+                      <div className="name">{contactForm.remarkName || result.nickname || result.displayUserId}</div>
+                      <div className="preview">ID: {result.displayUserId}</div>
+                    </div>
+                    <button
+                      className={result.alreadyAdded ? "btn ghost" : "btn btn-brand"}
+                      type="button"
+                      disabled={result.alreadyAdded}
+                      onClick={() => {
+                        setContactForm((prev) => ({ ...prev, peerUid: result.userUid }));
+                        void handleAddContact(result.userUid);
+                      }}
+                    >
+                      {result.alreadyAdded ? "已添加" : "添加"}
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <div className="empty-search">输入昵称或用户 ID 后即可获取真实搜索结果。</div>
+              )}
+            </section>
 
-          <section className="chat-panel">
-            <header className="chat-panel__header">
-              <div>
-                <span className="chat-panel__eyebrow">{session.mode === "backend" ? "真实会话" : "隐藏会话"}</span>
-                <h2>{activeConversation?.remarkName || activeConversation?.peerNickname || "选择一个会话"}</h2>
+            <aside className="card result-card">
+              <div className="section-title">最近添加</div>
+              <div className="advice-list">
+                {recentContacts.length === 0 && <div className="empty-search">暂无联系人记录</div>}
+                {recentContacts.map((contact) => (
+                  <div key={contact.peerUid} className="advice-item contact-advice">
+                    <div className="avatar small">{getAvatarLabel(contact.peerNickname || contact.displayUserId || contact.peerUid)}</div>
+                    <div>
+                      <div className="name">{contact.peerNickname || contact.displayUserId || contact.peerUid}</div>
+                      <div className="preview">{formatRecentAdded(contact.createdAt)} 已添加</div>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div>
-                <button type="button" onClick={handleLock}>
-                  返回伪装页
-                </button>
-                {session.mode === "backend" && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      clearStoredAuthState();
-                      setSession(null);
-                      setScreen("disguise");
-                      setStatusText("已退出当前账号。");
-                    }}
-                  >
-                    退出账号
-                  </button>
-                )}
+
+              <div className="section-title section-title-gap">提示</div>
+              <div className="section-text">
+                页面风格保持简洁，桌面端采用双栏布局，手机端自动折叠为单列。联系人搜索页不展示历史消息正文，避免公开泄露聊天内容。
               </div>
-            </header>
+            </aside>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
-            <div className="message-list">
-              {currentMessages.map((message) => (
-                <article
-                  key={message.messageId}
-                  className={message.senderUid === session.user.userUid ? "message message--self" : "message"}
-                >
-                  <span>{message.senderUid === session.user.userUid ? "我" : activeConversation?.remarkName || "对方"}</span>
-                  {renderMessageBody(message)}
-                </article>
-              ))}
-              {activeConversation && currentMessages.length === 0 && <article className="message">暂无消息</article>}
-            </div>
-
-            <footer className="composer">
-              <textarea
-                value={composer}
-                onChange={(event) => setComposer(event.target.value)}
-                placeholder="输入加密前的原始消息文本"
-                disabled={!activeConversation}
-              />
-              <label className="composer__file">
-                <input
-                  type="file"
-                  accept="image/*"
-                  disabled={!activeConversation || uploadingFile}
-                  onChange={(event) => {
-                    const selected = event.target.files?.[0] ?? null;
-                    event.currentTarget.value = "";
-                    void handleFileSelected(selected);
-                  }}
-                />
-                {uploadingFile ? "上传中..." : "发送图片"}
-              </label>
-              <button type="button" onClick={() => void handleSendMessage()} disabled={!activeConversation}>
-                发送
-              </button>
-            </footer>
-          </section>
-        </section>
-      )}
-
-      <section className="status-bar">
-        <strong>状态</strong>
-        <span>{statusText}</span>
-      </section>
-    </main>
-  );
+  function renderMessageRow(message: ChatMessage) {
+    const currentSession = session;
+    if (!currentSession) {
+      return null;
+    }
+    const isSelf = message.senderUid === currentSession.user.userUid;
+    const avatarName = activeConversation?.remarkName || activeConversation?.peerNickname || "对方";
+    return (
+      <div key={message.messageId} className={isSelf ? "msg self" : "msg other"}>
+        {!isSelf && <div className="avatar small">{getAvatarLabel(avatarName)}</div>}
+        {renderMessageBody(message, isSelf)}
+      </div>
+    );
+  }
 
   function resolvePeerUid(message: ChatMessage): string {
     return message.senderUid === session?.user.userUid ? message.receiverUid : message.senderUid;
   }
 
-  function renderMessageBody(message: ChatMessage) {
-    if (message.messageType !== "image") {
-      return <p>{extractTextPayload(message.payload)}</p>;
+  function renderMessageBody(message: ChatMessage, isSelf: boolean) {
+    if (!["image", "file"].includes(message.messageType)) {
+      return <div className="bubble">{extractTextPayload(message.payload)}</div>;
     }
 
-    const imagePayload = parseImagePayload(message.payload);
-    if (!imagePayload?.accessUrl) {
-      return <p>[图片消息]</p>;
-    }
-
+    const filePayload = parseFilePayload(message.payload);
+    const previewableImage = message.messageType === "image" && !!filePayload?.accessUrl;
     return (
-      <figure className="message__image">
-        <img src={imagePayload.accessUrl} alt={imagePayload.fileName || "图片消息"} loading="lazy" />
-        <figcaption>{imagePayload.fileName || "图片消息"}</figcaption>
-      </figure>
+      <div className={isSelf ? "file-card file-card--self" : "file-card"}>
+        <div className="file-card__title">{filePayload?.fileName || (message.messageType === "image" ? "图片消息" : "文件消息")}</div>
+        <div className="preview">{formatFileSubtitle(filePayload, previewableImage)}</div>
+        {previewableImage && filePayload?.accessUrl && (
+          <a className="file-card__link" href={filePayload.accessUrl} target="_blank" rel="noreferrer">
+            <img src={filePayload.accessUrl} alt={filePayload.fileName || "图片消息"} loading="lazy" />
+          </a>
+        )}
+        {!previewableImage && (filePayload?.downloadUrl || filePayload?.accessUrl) && (
+          <a
+            className="file-card__link"
+            href={filePayload.downloadUrl || filePayload.accessUrl}
+            target="_blank"
+            rel="noreferrer"
+            download={filePayload.fileName || true}
+          >
+            下载文件
+          </a>
+        )}
+      </div>
     );
+  }
+
+  function getMaskedConversationPreview(conversation: ConversationItem) {
+    const conversationMessages = messages[conversation.conversationId] ?? [];
+    const lastMessage = conversationMessages[conversationMessages.length - 1];
+    if (lastMessage?.messageType === "image") {
+      return "[图片消息]";
+    }
+    if (lastMessage?.messageType === "file") {
+      return "[文件消息]";
+    }
+    if (lastMessage?.messageType === "text") {
+      return "[文本消息]";
+    }
+    return conversation.lastMessagePreview.startsWith("[") ? conversation.lastMessagePreview : "[文本消息]";
   }
 }
 
@@ -875,35 +1261,76 @@ function sortContacts(items: ContactItem[]): ContactItem[] {
   return [...items].sort((left, right) => (right.lastMessageAt ?? 0) - (left.lastMessageAt ?? 0));
 }
 
+function sortRecentContacts(items: RecentContactItem[]): RecentContactItem[] {
+  return [...items].sort((left, right) => (right.createdAt ?? 0) - (left.createdAt ?? 0));
+}
+
 function sortConversations(items: ConversationItem[]): ConversationItem[] {
   return [...items].sort((left, right) => (right.lastMessageAt ?? 0) - (left.lastMessageAt ?? 0));
 }
 
-function buildDemoUser(nickname: string, email: string): LocalUser {
-  return {
-    userUid: "u_frontend_demo",
-    nickname: nickname || "Reader",
-    email: email || "demo@hide.chat"
-  };
+function buildPinSecretKey(userUid: string): string {
+  return `pin:${userUid}`;
 }
 
-function buildImagePayload(file: FileInfo): string {
+function buildFilePayload(file: FileInfo): string {
   return JSON.stringify({
     fileId: file.fileId,
     fileName: file.fileName,
     mimeType: file.mimeType,
     fileSize: file.fileSize,
-    accessUrl: file.accessUrl
+    accessUrl: file.accessUrl,
+    downloadUrl: file.downloadUrl
   });
 }
 
-function parseImagePayload(payload: string): { fileName?: string; accessUrl?: string } | null {
+function parseFilePayload(payload: string): {
+  fileName?: string;
+  accessUrl?: string;
+  downloadUrl?: string;
+  fileSize?: number;
+  mimeType?: string;
+} | null {
   try {
-    const parsed = JSON.parse(payload) as { fileName?: string; accessUrl?: string };
+    const parsed = JSON.parse(payload) as {
+      fileName?: string;
+      accessUrl?: string;
+      downloadUrl?: string;
+      fileSize?: number;
+      mimeType?: string;
+    };
     return parsed;
   } catch {
     return null;
   }
+}
+
+function resolveFileMessageType(mimeType?: string): "image" | "file" {
+  return mimeType?.startsWith("image/") ? "image" : "file";
+}
+
+function formatFileSubtitle(
+  payload: { fileSize?: number } | null,
+  previewableImage: boolean
+): string {
+  const size = formatFileSize(payload?.fileSize);
+  if (previewableImage) {
+    return size ? `${size} · 点击图片可预览或下载` : "点击图片可预览或下载";
+  }
+  return size ? `${size} · 点击可下载` : "点击可下载";
+}
+
+function formatFileSize(fileSize?: number): string {
+  if (!fileSize || fileSize <= 0) {
+    return "";
+  }
+  if (fileSize < 1024) {
+    return `${fileSize} B`;
+  }
+  if (fileSize < 1024 * 1024) {
+    return `${(fileSize / 1024).toFixed(1)} KB`;
+  }
+  return `${(fileSize / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function extractTextPayload(payload: string): string {
@@ -915,4 +1342,62 @@ function removeMessage(messages: Record<string, ChatMessage[]>, target: ChatMess
     ...messages,
     [target.conversationId]: (messages[target.conversationId] ?? []).filter((item) => item.messageId !== target.messageId)
   };
+}
+
+function getAvatarLabel(value: string): string {
+  return value.trim().slice(0, 1).toUpperCase() || "匿";
+}
+
+function formatWeekdayLabel(date: Date): string {
+  return new Intl.DateTimeFormat("zh-CN", { weekday: "long" }).format(date);
+}
+
+function formatWeekdayShort(date: Date): string {
+  return `周${"日一二三四五六"[date.getDay()]}`;
+}
+
+function formatMessageTime(timestamp: number): string {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const sameDay = date.toDateString() === now.toDateString();
+  if (sameDay) {
+    return new Intl.DateTimeFormat("zh-CN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    }).format(date);
+  }
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) {
+    return "昨天";
+  }
+  return formatWeekdayShort(date);
+}
+
+function formatConversationDivider(timestamp: number): string {
+  return `今天 ${new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(timestamp))}`;
+}
+
+function formatRecentAdded(timestamp: number): string {
+  const date = new Date(timestamp);
+  const now = new Date();
+  if (date.toDateString() === now.toDateString()) {
+    return `今天 ${new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(date)}`;
+  }
+  return `昨天 ${new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(date)}`;
+}
+
+function matchesMessageSearch(message: ChatMessage, keyword: string): boolean {
+  const normalizedKeyword = keyword.trim().toLowerCase();
+  if (!normalizedKeyword) {
+    return true;
+  }
+  if (message.messageType === "text") {
+    return extractTextPayload(message.payload).toLowerCase().includes(normalizedKeyword);
+  }
+  const filePayload = parseFilePayload(message.payload);
+  return [filePayload?.fileName, filePayload?.mimeType, filePayload?.downloadUrl, filePayload?.accessUrl]
+    .filter((value): value is string => Boolean(value))
+    .some((value) => value.toLowerCase().includes(normalizedKeyword));
 }

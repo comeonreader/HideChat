@@ -82,8 +82,11 @@ class ConversationIntegrationTest extends AbstractIntegrationTest {
         assertEquals(2, listBody.path("data").size());
         assertEquals("c_seed_newer", listBody.path("data").get(0).path("conversationId").asText());
         assertEquals(2, listBody.path("data").get(0).path("unreadCount").asInt());
+        assertEquals("[文本消息]", listBody.path("data").get(0).path("lastMessagePreview").asText());
+        assertEquals("masked", listBody.path("data").get(0).path("previewStrategy").asText());
         assertEquals(createdConversationId, listBody.path("data").get(1).path("conversationId").asText());
         assertEquals(5, listBody.path("data").get(1).path("unreadCount").asInt());
+        assertEquals("[文本消息]", listBody.path("data").get(1).path("lastMessagePreview").asText());
 
         ClearUnreadRequest clearUnreadRequest = new ClearUnreadRequest();
         clearUnreadRequest.setConversationId(createdConversationId);

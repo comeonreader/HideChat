@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hidechat.common.exception.BusinessException;
 import com.hidechat.common.exception.GlobalExceptionHandler;
 import com.hidechat.modules.conversation.controller.ConversationController;
 import com.hidechat.modules.conversation.dto.ClearUnreadRequest;
@@ -69,11 +70,15 @@ class ConversationControllerTest {
         when(currentUserProvider.getRequiredUserUid()).thenReturn("u_1001");
         ConversationItemVO vo = new ConversationItemVO();
         vo.setConversationId("c_1001");
+        vo.setLastMessagePreview("[文件消息]");
+        vo.setPreviewStrategy("masked");
         when(conversationService.listConversations("u_1001")).thenReturn(List.of(vo));
 
         mockMvc.perform(get("/api/conversation/list"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data[0].conversationId").value("c_1001"));
+            .andExpect(jsonPath("$.data[0].conversationId").value("c_1001"))
+            .andExpect(jsonPath("$.data[0].lastMessagePreview").value("[文件消息]"))
+            .andExpect(jsonPath("$.data[0].previewStrategy").value("masked"));
     }
 
     @Test
@@ -89,5 +94,14 @@ class ConversationControllerTest {
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(0));
+    }
+
+    @Test
+    void shouldReturnUnauthorizedWhenCurrentUserMissing() throws Exception {
+        when(currentUserProvider.getRequiredUserUid()).thenThrow(new BusinessException(401001, "未登录或 token 无效"));
+
+        mockMvc.perform(get("/api/conversation/list"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.code").value(401001));
     }
 }

@@ -4,6 +4,7 @@ import com.hidechat.common.response.ApiResponse;
 import com.hidechat.modules.contact.dto.AddContactRequest;
 import com.hidechat.modules.contact.service.ContactService;
 import com.hidechat.modules.contact.vo.ContactItemVO;
+import com.hidechat.modules.contact.vo.RecentContactItemVO;
 import com.hidechat.security.context.CurrentUserProvider;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -31,5 +32,10 @@ public class ContactController {
     @GetMapping("/list")
     public ApiResponse<List<ContactItemVO>> listContacts() {
         return ApiResponse.success(contactService.listContacts(currentUserProvider.getRequiredUserUid()));
+    }
+
+    @GetMapping("/recent")
+    public ApiResponse<List<RecentContactItemVO>> listRecentContacts(@org.springframework.web.bind.annotation.RequestParam(required = false) Integer limit) {
+        return ApiResponse.success(contactService.listRecentContacts(currentUserProvider.getRequiredUserUid(), limit));
     }
 }

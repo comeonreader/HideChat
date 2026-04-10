@@ -36,13 +36,12 @@
   ↓
 展示幸运数字输入页
   ↓
-输入用户自定义幸运数字
+输入幸运数字
   ↓
-校验成功
+通过后端接口校验 luckyCode
   ↓
-展示运势页
-  ↓
-进入聊天系统
+命中 luckyCode：进入聊天系统
+未命中 luckyCode：展示运势页
   ↓
 展示聊天列表（联系人 / 未读 / 时间 / 脱敏预览）
   ↓
@@ -76,8 +75,8 @@
 
 交互要求：
 
-* 首次使用支持设置幸运数字
-* 后续访问默认输入后校验
+* 幸运数字由后台数据库定义 luckyCode 作为隐藏入口校验值
+* 用户输入后通过后端接口校验
 * 校验失败不提示密码错误，只停留在伪装链路
 
 ## 3.2 运势展示页
@@ -90,7 +89,7 @@
 
 * 运势标题与摘要
 * 好运指数
-* 幸运色 / 幸运数字 / 宜做事项
+* 幸运色 / 幸运数字（展示用户输入值，非 luckyCode） / 宜做事项
 * 建议列表
 * 情绪提醒
 * 返回首页或进入聊天系统的后续动作
@@ -181,24 +180,28 @@
 
 ### 4.1.1 功能说明
 
-* 用户首次设置今日幸运数字
-* 后续每次访问需输入后校验
+* 后台数据库预置 luckyCode 作为隐藏入口校验值
+* 用户每次访问输入数字后，前端调用后端接口完成校验
+* 若输入值未命中 luckyCode，则继续停留在伪装链路并展示运势页
 
 ### 4.1.2 存储方式
 
 ```text
-localStorage / IndexedDB:
-{
-  luckyCodeHash: "hash值",
-  luckyCodeSalt: "salt",
-  luckyCodeKdfParams: {}
-}
+Backend Database:
+im_disguise_lucky_code
+- code_value
+- status
+- effective_start_at
+- effective_end_at
+
+Frontend Runtime:
+- lastInputLuckyNumber
 ```
 
 要求：
 
-* 不存明文
-* 仅存 hash / salt / KDF 参数
+* luckyCode 明文存于后端数据库，仅用于后端校验
+* 运势页 luckyNumber 展示用户本次输入值
 
 ### 4.1.3 错误行为
 
@@ -328,9 +331,8 @@ localStorage / IndexedDB:
 
 ```text
 app_meta
-- luckyCodeHash
-- luckyCodeSalt
-- luckyCodeKdfParams
+- disguiseConfig
+- lastInputLuckyNumber
 
 conversation_index
 - conversationId
@@ -408,7 +410,7 @@ file_cache
 * summary
 * fortuneScore
 * luckyColor
-* luckyNumber
+* luckyNumber（用户输入值，非 luckyCode）
 * suggestedActions
 * adviceList
 * moodReminder
@@ -420,7 +422,7 @@ file_cache
 
 ## 7.1 安全
 
-* 幸运数字不存明文
+* luckyCode 允许在后端数据库明文存储，用于后端校验
 * PIN 不存明文
 * 会话列表真实内容脱敏
 * 使用 KDF

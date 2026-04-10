@@ -1,0 +1,56 @@
+#!/bin/bash
+# HideChat 邮箱验证码功能演示
+
+echo "========================================="
+echo "    HideChat 邮箱验证码功能演示"
+echo "========================================="
+echo ""
+echo "本演示展示 HideChat 的邮箱验证码发送功能改进："
+echo ""
+
+echo "1. 配置改进："
+echo "   - 默认启用邮件功能 (HIDECHAT_MAIL_ENABLED:true)"
+echo "   - 集成 MailPit 测试邮件服务"
+echo "   - 前端提示引导用户查看测试邮件服务"
+echo ""
+
+echo "2. 启动步骤："
+echo "   cp .env.example .env"
+echo "   docker-compose up -d"
+echo ""
+
+echo "3. 访问地址："
+echo "   - 前端应用: http://localhost:5173"
+echo "   - MailPit 邮件界面: http://localhost:8025"
+echo "   - 后端 API: http://localhost:8080"
+echo ""
+
+echo "4. 使用流程："
+echo "   a. 访问 http://localhost:5173"
+echo "   b. 输入幸运数字 (默认: 7777)"
+echo "   c. 进入隐藏聊天页面"
+echo "   d. 选择邮箱登录/注册"
+echo "   e. 输入邮箱地址，点击'发送验证码'"
+echo "   f. 访问 http://localhost:8025 查看收到的验证码"
+echo "   g. 输入验证码完成登录/注册"
+echo ""
+
+echo "5. 技术实现："
+echo "   - 后端: Spring Boot + JavaMail"
+echo "   - 邮件服务: MailPit (SMTP 测试服务器)"
+echo "   - 前端: React + TypeScript"
+echo "   - 配置: 环境变量驱动，易于切换生产环境"
+echo ""
+
+echo "6. 生产环境切换："
+echo "   只需修改 .env 文件中的邮件配置："
+echo "   HIDECHAT_MAIL_ENABLED=true"
+echo "   SPRING_MAIL_HOST=smtp.your-provider.com"
+echo "   SPRING_MAIL_PORT=587"
+echo "   SPRING_MAIL_USERNAME=your-email@example.com"
+echo "   SPRING_MAIL_PASSWORD=your-password"
+echo ""
+
+echo "========================================="
+echo "功能完善完成！现在用户可以正常接收验证码了。"
+echo "========================================="

@@ -81,6 +81,8 @@ class ConversationServiceImplTest {
     @Test
     void shouldListConversations() {
         ImConversationEntity entity = buildConversation("c_1001", "u_1001", "u_1002");
+        entity.setLastMessageType("file");
+        entity.setLastMessagePreview("project-draft-v3.pdf");
         when(conversationMapper.selectList(any())).thenReturn(List.of(entity));
         when(contactMapper.selectList(any())).thenReturn(List.of(buildContact("u_1001", "u_1002")));
         when(unreadCounterMapper.selectList(any())).thenReturn(List.of());
@@ -90,6 +92,10 @@ class ConversationServiceImplTest {
 
         assertEquals(1, list.size());
         assertEquals("c_1001", list.get(0).getConversationId());
+        assertEquals("hide_1002", list.get(0).getDisplayUserId());
+        assertEquals("[文件消息]", list.get(0).getLastMessagePreview());
+        assertEquals("masked", list.get(0).getPreviewStrategy());
+        assertEquals("recently_active", list.get(0).getOnlineStatus());
     }
 
     @Test
@@ -133,6 +139,19 @@ class ConversationServiceImplTest {
         assertThrows(BusinessException.class, () -> conversationService.createSingleConversation("u_1001", request));
     }
 
+    @Test
+    void shouldRejectClearUnreadForNonParticipant() {
+        when(conversationMapper.selectOne(any())).thenReturn(buildConversation("c_1001", "u_2001", "u_2002"));
+
+        ClearUnreadRequest request = new ClearUnreadRequest();
+        request.setConversationId("c_1001");
+
+        BusinessException exception = assertThrows(BusinessException.class,
+            () -> conversationService.clearUnread("u_1001", request));
+
+        assertEquals(403001, exception.getCode());
+    }
+
     private void mockCommonLookups() {
         when(contactMapper.selectList(any())).thenReturn(List.of(buildContact("u_1001", "u_1002")));
         when(unreadCounterMapper.selectList(any())).thenReturn(List.of());
@@ -158,6 +177,7 @@ class ConversationServiceImplTest {
     private UserProfileVO buildProfile(String userUid) {
         UserProfileVO vo = new UserProfileVO();
         vo.setUserUid(userUid);
+        vo.setDisplayUserId("hide_1002");
         vo.setNickname("User " + userUid);
         return vo;
     }

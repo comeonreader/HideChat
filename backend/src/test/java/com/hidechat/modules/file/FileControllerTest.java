@@ -6,18 +6,23 @@ import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hidechat.common.exception.BusinessException;
 import com.hidechat.common.exception.GlobalExceptionHandler;
 import com.hidechat.modules.file.controller.FileController;
 import com.hidechat.modules.file.dto.CompleteFileUploadRequest;
 import com.hidechat.modules.file.dto.CreateUploadSignRequest;
 import com.hidechat.modules.file.service.FileService;
+import com.hidechat.modules.file.service.PublicFileContent;
 import com.hidechat.modules.file.vo.FileInfoVO;
 import com.hidechat.modules.file.vo.FileUploadSignVO;
 import com.hidechat.security.context.CurrentUserProvider;
+import org.hamcrest.Matchers;
+import org.springframework.core.io.ByteArrayResource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -92,11 +97,13 @@ class FileControllerTest {
         when(currentUserProvider.getRequiredUserUid()).thenReturn("u_1001");
         FileInfoVO vo = new FileInfoVO();
         vo.setFileId("f_1001");
+        vo.setDownloadUrl("/api/file/content/f_1001?expires=1&signature=sig&download=true");
         when(fileService.getFileInfo("u_1001", "f_1001")).thenReturn(vo);
 
         mockMvc.perform(get("/api/file/f_1001"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.fileId").value("f_1001"));
+            .andExpect(jsonPath("$.data.fileId").value("f_1001"))
+            .andExpect(jsonPath("$.data.downloadUrl").value("/api/file/content/f_1001?expires=1&signature=sig&download=true"));
     }
 
     @Test
@@ -108,5 +115,27 @@ class FileControllerTest {
                 .content("file"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(0));
+    }
+
+    @Test
+    void shouldDownloadContentWithAttachmentHeader() throws Exception {
+        when(fileService.loadPublicContent("f_1001", 1L, "sig", true))
+            .thenReturn(new PublicFileContent(new ByteArrayResource("file".getBytes()), "application/pdf", "test.pdf"));
+
+        mockMvc.perform(get("/api/file/content/f_1001")
+                .param("expires", "1")
+                .param("signature", "sig")
+                .param("download", "true"))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Content-Disposition", Matchers.containsString("attachment")));
+    }
+
+    @Test
+    void shouldReturnUnauthorizedWhenCurrentUserMissing() throws Exception {
+        when(currentUserProvider.getRequiredUserUid()).thenThrow(new BusinessException(401001, "未登录或 token 无效"));
+
+        mockMvc.perform(get("/api/file/f_1001"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.code").value(401001));
     }
 }

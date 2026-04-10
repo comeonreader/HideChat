@@ -6,6 +6,7 @@ import com.hidechat.common.util.IdGenerator;
 import com.hidechat.modules.contact.dto.AddContactRequest;
 import com.hidechat.modules.contact.service.ContactService;
 import com.hidechat.modules.contact.vo.ContactItemVO;
+import com.hidechat.modules.contact.vo.RecentContactItemVO;
 import com.hidechat.modules.user.service.UserService;
 import com.hidechat.modules.user.vo.UserProfileVO;
 import com.hidechat.persistence.entity.ImContactEntity;
@@ -26,6 +27,9 @@ import org.springframework.util.StringUtils;
 
 @Service
 public class ContactServiceImpl implements ContactService {
+
+    private static final int DEFAULT_RECENT_LIMIT = 10;
+    private static final int MAX_RECENT_LIMIT = 50;
 
     private final ImContactMapper contactMapper;
     private final ImUserMapper userMapper;
@@ -87,7 +91,7 @@ public class ContactServiceImpl implements ContactService {
             .eq(ImContactEntity::getOwnerUid, ownerUid)
             .orderByDesc(ImContactEntity::getPinned)
             .orderByDesc(ImContactEntity::getLastMessageAt)
-            .orderByDesc(ImContactEntity::getId));
+            .orderByDesc(ImContactEntity::getCreatedAt));
         Set<String> peerUids = contacts.stream()
             .map(ImContactEntity::getPeerUid)
             .collect(Collectors.toSet());
@@ -99,6 +103,7 @@ public class ContactServiceImpl implements ContactService {
                 ContactItemVO vo = new ContactItemVO();
                 vo.setPeerUid(contact.getPeerUid());
                 if (profile != null) {
+                    vo.setDisplayUserId(profile.getDisplayUserId());
                     vo.setPeerNickname(profile.getNickname());
                     vo.setPeerAvatar(profile.getAvatarUrl());
                 }
@@ -109,5 +114,45 @@ public class ContactServiceImpl implements ContactService {
                 return vo;
             })
             .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<RecentContactItemVO> listRecentContacts(String ownerUid, Integer limit) {
+        int normalizedLimit = normalizeRecentLimit(limit);
+        List<ImContactEntity> contacts = contactMapper.selectList(new LambdaQueryWrapper<ImContactEntity>()
+            .eq(ImContactEntity::getOwnerUid, ownerUid)
+            .orderByDesc(ImContactEntity::getCreatedAt)
+            .last("limit " + normalizedLimit));
+        Set<String> peerUids = contacts.stream()
+            .map(ImContactEntity::getPeerUid)
+            .collect(Collectors.toSet());
+        Map<String, UserProfileVO> peerProfiles = userService.getUserProfiles(peerUids);
+        ZoneId zoneId = clock.getZone();
+        return contacts.stream()
+            .map(contact -> {
+                UserProfileVO profile = peerProfiles.get(contact.getPeerUid());
+                RecentContactItemVO vo = new RecentContactItemVO();
+                vo.setPeerUid(contact.getPeerUid());
+                if (profile != null) {
+                    vo.setDisplayUserId(profile.getDisplayUserId());
+                    vo.setPeerNickname(profile.getNickname());
+                    vo.setPeerAvatar(profile.getAvatarUrl());
+                }
+                vo.setCreatedAt(contact.getCreatedAt() == null ? null
+                    : contact.getCreatedAt().atZone(zoneId).toInstant().toEpochMilli());
+                return vo;
+            })
+            .toList();
+    }
+
+    private int normalizeRecentLimit(Integer limit) {
+        if (limit == null) {
+            return DEFAULT_RECENT_LIMIT;
+        }
+        if (limit <= 0 || limit > MAX_RECENT_LIMIT) {
+            throw new BusinessException(400001, "limit 不合法");
+        }
+        return limit;
     }
 }

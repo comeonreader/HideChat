@@ -1,12 +1,14 @@
 package com.hidechat.modules.message;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.hidechat.common.exception.BusinessException;
 import com.hidechat.common.util.IdGenerator;
 import com.hidechat.common.util.RandomValueGenerator;
 import com.hidechat.modules.message.dto.MarkMessageReadRequest;
@@ -143,12 +145,84 @@ class MessageServiceImplTest {
         assertEquals(0, counter.getUnreadCount());
     }
 
+    @Test
+    void shouldRejectHistoryForNonParticipant() {
+        when(conversationMapper.selectOne(any())).thenReturn(buildConversation("c_1001", "u_3001", "u_3002"));
+
+        BusinessException exception = assertThrows(BusinessException.class,
+            () -> messageService.listHistory("u_1001", "c_1001", null, 20));
+
+        assertEquals(403001, exception.getCode());
+    }
+
+    @Test
+    void shouldRejectReadWhenMessageOutsideReceiverScope() {
+        when(conversationMapper.selectOne(any())).thenReturn(buildConversation());
+        when(messageMapper.selectList(any())).thenReturn(List.of());
+
+        MarkMessageReadRequest request = new MarkMessageReadRequest();
+        request.setConversationId("c_1001");
+        request.setMessageIds(List.of("m_1001"));
+
+        BusinessException exception = assertThrows(BusinessException.class,
+            () -> messageService.markMessagesRead("u_1002", request));
+
+        assertEquals(420202, exception.getCode());
+    }
+
+    @Test
+    void shouldSendFileMessageAndUpdateConversationPreview() {
+        ImConversationEntity conversation = buildConversation();
+        when(conversationMapper.selectOne(any())).thenReturn(conversation);
+        when(contactMapper.selectOne(any()))
+            .thenReturn(buildContact("u_1001", "u_1002"))
+            .thenReturn(buildContact("u_1002", "u_1001"));
+        when(unreadCounterMapper.selectOne(any())).thenReturn(null);
+
+        SendMessageRequest request = new SendMessageRequest();
+        request.setConversationId("c_1001");
+        request.setReceiverUid("u_1002");
+        request.setMessageType("file");
+        request.setPayloadType("ref");
+        request.setPayload("{\"fileId\":\"f_1001\"}");
+        request.setFileId("f_1001");
+        request.setClientMsgTime(1712534400000L);
+
+        MessageItemVO result = messageService.sendMessage("u_1001", request);
+
+        assertEquals("file", result.getMessageType());
+        assertEquals("f_1001", result.getFileId());
+        assertEquals("[文件消息]", conversation.getLastMessagePreview());
+        assertEquals("file", conversation.getLastMessageType());
+    }
+
+    @Test
+    void shouldRejectUnsupportedMessageType() {
+        when(conversationMapper.selectOne(any())).thenReturn(buildConversation());
+
+        SendMessageRequest request = new SendMessageRequest();
+        request.setConversationId("c_1001");
+        request.setReceiverUid("u_1002");
+        request.setMessageType("voice");
+        request.setPayloadType("ref");
+        request.setPayload("payload");
+
+        BusinessException exception = assertThrows(BusinessException.class,
+            () -> messageService.sendMessage("u_1001", request));
+
+        assertEquals(400001, exception.getCode());
+    }
+
     private ImConversationEntity buildConversation() {
+        return buildConversation("c_1001", "u_1001", "u_1002");
+    }
+
+    private ImConversationEntity buildConversation(String conversationId, String userAUid, String userBUid) {
         ImConversationEntity entity = new ImConversationEntity();
         entity.setId(1L);
-        entity.setConversationId("c_1001");
-        entity.setUserAUid("u_1001");
-        entity.setUserBUid("u_1002");
+        entity.setConversationId(conversationId);
+        entity.setUserAUid(userAUid);
+        entity.setUserBUid(userBUid);
         return entity;
     }
 

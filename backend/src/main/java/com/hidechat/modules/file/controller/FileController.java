@@ -13,6 +13,7 @@ import jakarta.validation.Valid;
 import java.io.IOException;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import lombok.RequiredArgsConstructor;
@@ -62,11 +63,18 @@ public class FileController {
     @GetMapping("/content/{fileId}")
     public ResponseEntity<Resource> content(@PathVariable String fileId,
                                             @RequestParam long expires,
-                                            @RequestParam String signature) {
-        PublicFileContent fileContent = fileService.loadPublicContent(fileId, expires, signature);
-        return ResponseEntity.ok()
+                                            @RequestParam String signature,
+                                            @RequestParam(defaultValue = "false") boolean download) {
+        PublicFileContent fileContent = fileService.loadPublicContent(fileId, expires, signature, download);
+        ResponseEntity.BodyBuilder responseBuilder = ResponseEntity.ok()
             .header(HttpHeaders.CACHE_CONTROL, "private, max-age=300")
-            .contentType(MediaType.parseMediaType(fileContent.getMimeType()))
-            .body(fileContent.getResource());
+            .contentType(MediaType.parseMediaType(fileContent.getMimeType()));
+        if (download) {
+            responseBuilder.header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                .filename(fileContent.getFileName())
+                .build()
+                .toString());
+        }
+        return responseBuilder.body(fileContent.getResource());
     }
 }

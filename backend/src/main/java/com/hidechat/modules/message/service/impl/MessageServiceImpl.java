@@ -159,14 +159,14 @@ public class MessageServiceImpl implements MessageService {
     }
 
     private void validateMessageRequest(SendMessageRequest request) {
-        if (!List.of("text", "image", "system").contains(request.getMessageType())) {
+        if (!List.of("text", "image", "file", "system").contains(request.getMessageType())) {
             throw new BusinessException(400001, "消息类型不支持");
         }
         if (!List.of("plain", "ref", "encrypted").contains(request.getPayloadType())) {
             throw new BusinessException(400001, "消息负载类型不支持");
         }
-        if ("image".equals(request.getMessageType()) && !StringUtils.hasText(request.getFileId())) {
-            throw new BusinessException(400001, "图片消息必须关联文件");
+        if (List.of("image", "file").contains(request.getMessageType()) && !StringUtils.hasText(request.getFileId())) {
+            throw new BusinessException(400001, "文件消息必须关联文件");
         }
         if ("text".equals(request.getMessageType()) && !StringUtils.hasText(request.getPayload())) {
             throw new BusinessException(400001, "文本消息内容不能为空");
@@ -317,6 +317,7 @@ public class MessageServiceImpl implements MessageService {
     private String buildPreview(String messageType) {
         return switch (messageType) {
             case "image" -> "[图片消息]";
+            case "file" -> "[文件消息]";
             case "system" -> "[系统消息]";
             default -> "[文本消息]";
         };

@@ -11,6 +11,7 @@ import com.hidechat.common.util.IdGenerator;
 import com.hidechat.modules.contact.dto.AddContactRequest;
 import com.hidechat.modules.contact.service.impl.ContactServiceImpl;
 import com.hidechat.modules.contact.vo.ContactItemVO;
+import com.hidechat.modules.contact.vo.RecentContactItemVO;
 import com.hidechat.modules.user.service.UserService;
 import com.hidechat.modules.user.vo.UserProfileVO;
 import com.hidechat.persistence.entity.ImContactEntity;
@@ -102,6 +103,7 @@ class ContactServiceImplTest {
         when(contactMapper.selectList(any())).thenReturn(List.of(contact));
         UserProfileVO profile = new UserProfileVO();
         profile.setUserUid("u_1002");
+        profile.setDisplayUserId("hide_1002");
         profile.setNickname("Bob");
         when(userService.getUserProfiles(any())).thenReturn(Map.of("u_1002", profile));
 
@@ -109,7 +111,36 @@ class ContactServiceImplTest {
 
         assertEquals(1, result.size());
         assertEquals("u_1002", result.get(0).getPeerUid());
+        assertEquals("hide_1002", result.get(0).getDisplayUserId());
         assertEquals("Bob", result.get(0).getPeerNickname());
+    }
+
+    @Test
+    void shouldListRecentContactsWithDefaultLimit() {
+        ImContactEntity first = new ImContactEntity();
+        first.setOwnerUid("u_1001");
+        first.setPeerUid("u_1002");
+        first.setCreatedAt(java.time.LocalDateTime.of(2026, 4, 7, 0, 0));
+        when(contactMapper.selectList(any())).thenReturn(List.of(first));
+        UserProfileVO profile = new UserProfileVO();
+        profile.setUserUid("u_1002");
+        profile.setDisplayUserId("hide_1002");
+        profile.setNickname("Bob");
+        when(userService.getUserProfiles(any())).thenReturn(Map.of("u_1002", profile));
+
+        List<RecentContactItemVO> result = contactService.listRecentContacts("u_1001", null);
+
+        assertEquals(1, result.size());
+        assertEquals("hide_1002", result.get(0).getDisplayUserId());
+        assertEquals("Bob", result.get(0).getPeerNickname());
+    }
+
+    @Test
+    void shouldRejectInvalidRecentContactLimit() {
+        BusinessException exception = assertThrows(BusinessException.class,
+            () -> contactService.listRecentContacts("u_1001", 0));
+
+        assertEquals(400001, exception.getCode());
     }
 
     private ImUserEntity buildUser(String userUid) {

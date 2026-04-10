@@ -12,8 +12,12 @@ import com.hidechat.modules.file.service.FileUrlSignatureService;
 import com.hidechat.modules.file.service.PublicFileContent;
 import com.hidechat.modules.file.vo.FileInfoVO;
 import com.hidechat.modules.file.vo.FileUploadSignVO;
+import com.hidechat.persistence.entity.ImConversationEntity;
 import com.hidechat.persistence.entity.ImFileEntity;
+import com.hidechat.persistence.entity.ImMessageEntity;
+import com.hidechat.persistence.mapper.ImConversationMapper;
 import com.hidechat.persistence.mapper.ImFileMapper;
+import com.hidechat.persistence.mapper.ImMessageMapper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -21,6 +25,7 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.springframework.core.io.FileSystemResource;
@@ -32,6 +37,8 @@ import org.springframework.util.StringUtils;
 public class FileServiceImpl implements FileService {
 
     private final ImFileMapper fileMapper;
+    private final ImMessageMapper messageMapper;
+    private final ImConversationMapper conversationMapper;
     private final IdGenerator idGenerator;
     private final RandomValueGenerator randomValueGenerator;
     private final FileStorageProperties fileStorageProperties;
@@ -39,12 +46,16 @@ public class FileServiceImpl implements FileService {
     private final Clock clock;
 
     public FileServiceImpl(ImFileMapper fileMapper,
+                           ImMessageMapper messageMapper,
+                           ImConversationMapper conversationMapper,
                            IdGenerator idGenerator,
                            RandomValueGenerator randomValueGenerator,
                            FileStorageProperties fileStorageProperties,
                            FileUrlSignatureService fileUrlSignatureService,
                            Clock clock) {
         this.fileMapper = fileMapper;
+        this.messageMapper = messageMapper;
+        this.conversationMapper = conversationMapper;
         this.idGenerator = idGenerator;
         this.randomValueGenerator = randomValueGenerator;
         this.fileStorageProperties = fileStorageProperties;
@@ -131,14 +142,17 @@ public class FileServiceImpl implements FileService {
     @Override
     @Transactional(readOnly = true)
     public FileInfoVO getFileInfo(String userUid, String fileId) {
-        ImFileEntity entity = requireOwnedFile(fileId, userUid);
+        ImFileEntity entity = requireConversationParticipantFile(fileId, userUid);
         entity.setAccessUrl(buildSignedAccessUrl(entity.getFileId()));
         return toFileInfo(entity);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public PublicFileContent loadPublicContent(String fileId, long expiresAtEpochSeconds, String signature) {
+    public PublicFileContent loadPublicContent(String fileId,
+                                               long expiresAtEpochSeconds,
+                                               String signature,
+                                               boolean download) {
         if (!fileUrlSignatureService.verifyDownload(fileId, expiresAtEpochSeconds, signature)) {
             throw new BusinessException(401001, "文件访问签名无效");
         }
@@ -147,12 +161,44 @@ public class FileServiceImpl implements FileService {
         if (!Files.exists(filePath)) {
             throw new BusinessException(404001, "文件不存在");
         }
-        return new PublicFileContent(new FileSystemResource(filePath), entity.getMimeType());
+        return new PublicFileContent(new FileSystemResource(filePath), entity.getMimeType(), entity.getFileName());
     }
 
     private ImFileEntity requireOwnedFile(String fileId, String userUid) {
         ImFileEntity entity = requireFile(fileId);
         if (!Objects.equals(entity.getUploaderUid(), userUid)) {
+            throw new BusinessException(403001, "无权限访问");
+        }
+        return entity;
+    }
+
+    private ImFileEntity requireConversationParticipantFile(String fileId, String userUid) {
+        ImFileEntity entity = requireFile(fileId);
+        List<ImMessageEntity> fileMessages = messageMapper.selectList(new LambdaQueryWrapper<ImMessageEntity>()
+            .eq(ImMessageEntity::getFileId, fileId)
+            .eq(ImMessageEntity::getDeleted, Boolean.FALSE));
+        if (fileMessages.isEmpty()) {
+            if (Objects.equals(entity.getUploaderUid(), userUid)) {
+                return entity;
+            }
+            throw new BusinessException(403001, "无权限访问");
+        }
+
+        List<String> conversationIds = fileMessages.stream()
+            .map(ImMessageEntity::getConversationId)
+            .filter(StringUtils::hasText)
+            .distinct()
+            .toList();
+        if (conversationIds.isEmpty()) {
+            throw new BusinessException(403001, "无权限访问");
+        }
+
+        long matchedConversationCount = conversationMapper.selectCount(new LambdaQueryWrapper<ImConversationEntity>()
+            .in(ImConversationEntity::getConversationId, conversationIds)
+            .and(wrapper -> wrapper.eq(ImConversationEntity::getUserAUid, userUid)
+                .or()
+                .eq(ImConversationEntity::getUserBUid, userUid)));
+        if (matchedConversationCount <= 0) {
             throw new BusinessException(403001, "无权限访问");
         }
         return entity;
@@ -197,6 +243,10 @@ public class FileServiceImpl implements FileService {
         return "/api/file/content/" + fileId + "?expires=" + expiresAt + "&signature=" + signature;
     }
 
+    private String buildSignedDownloadUrl(String fileId) {
+        return buildSignedAccessUrl(fileId) + "&download=true";
+    }
+
     private Path resolveStoragePath(String storageKey) {
         Path storageRoot = Path.of(fileStorageProperties.getStorageRoot()).toAbsolutePath().normalize();
         Path resolved = storageRoot.resolve(storageKey).normalize();
@@ -222,10 +272,23 @@ public class FileServiceImpl implements FileService {
         FileInfoVO vo = new FileInfoVO();
         vo.setFileId(entity.getFileId());
         vo.setFileName(entity.getFileName());
+        vo.setFileExt(resolveFileExtensionWithoutDot(entity.getFileName()));
+        vo.setPreviewable(isPreviewable(entity.getMimeType()));
         vo.setMimeType(entity.getMimeType());
         vo.setFileSize(entity.getFileSize());
         vo.setAccessUrl(entity.getAccessUrl());
+        vo.setDownloadUrl(buildSignedDownloadUrl(entity.getFileId()));
         vo.setEncryptFlag(Boolean.TRUE.equals(entity.getEncryptFlag()));
         return vo;
+    }
+
+    private String resolveFileExtensionWithoutDot(String fileName) {
+        String extension = resolveExtension(fileName);
+        return extension.startsWith(".") ? extension.substring(1) : extension;
+    }
+
+    private boolean isPreviewable(String mimeType) {
+        return StringUtils.hasText(mimeType)
+            && (mimeType.startsWith("image/") || mimeType.equals("application/pdf") || mimeType.startsWith("text/"));
     }
 }

@@ -76,6 +76,20 @@ describe("hidechat backend realtime flow", () => {
           });
         }
 
+        if (url.endsWith("/api/system/disguise/verify-lucky-number") && method === "POST") {
+          if (jsonBody?.luckyNumber === "2468") {
+            return jsonResponse({
+              code: 0,
+              data: { matched: true }
+            });
+          }
+          return jsonResponse({
+            code: 420201,
+            message: "luckyCode 校验失败",
+            data: null
+          });
+        }
+
         if (url.endsWith("/api/auth/email/password-login") && method === "POST") {
           return jsonResponse({
             code: 0,
@@ -96,8 +110,8 @@ describe("hidechat backend realtime flow", () => {
             code: 0,
             data: {
               userUid: "u_1001",
-              nickname: "Reader",
-              email: "reader@example.com"
+              displayUserId: "hide_u1001",
+              nickname: "Reader"
             }
           });
         }
@@ -111,6 +125,20 @@ describe("hidechat backend realtime flow", () => {
                 peerNickname: "Anna",
                 remarkName: "Anna",
                 lastMessageAt: 1712620800000
+              }
+            ]
+          });
+        }
+
+        if (url.includes("/api/contact/recent")) {
+          return jsonResponse({
+            code: 0,
+            data: [
+              {
+                peerUid: "u_2001",
+                displayUserId: "hide_2001",
+                peerNickname: "Anna",
+                createdAt: 1712620800000
               }
             ]
           });
@@ -148,14 +176,17 @@ describe("hidechat backend realtime flow", () => {
         }
 
         if (url.endsWith("/api/file/upload-sign") && method === "POST") {
+          const fileName = jsonBody?.fileName ?? "photo.png";
+          const mimeType = jsonBody?.mimeType ?? "image/png";
+          const extension = fileName.includes(".") ? fileName.slice(fileName.lastIndexOf(".")) : ".bin";
           return jsonResponse({
             code: 0,
             data: {
               fileId: "f_1001",
-              storageKey: "chat/2026/04/09/f_1001.png",
+              storageKey: `chat/2026/04/09/f_1001${extension}`,
               uploadUrl: "/api/file/upload/f_1001",
               headers: {
-                "Content-Type": jsonBody?.mimeType ?? "image/png"
+                "Content-Type": mimeType
               }
             }
           });
@@ -166,14 +197,17 @@ describe("hidechat backend realtime flow", () => {
         }
 
         if (url.endsWith("/api/file/complete") && method === "POST") {
+          const mimeType = jsonBody?.mimeType ?? "image/png";
+          const fileName = mimeType === "application/pdf" ? "project-draft-v3.pdf" : "photo.png";
           return jsonResponse({
             code: 0,
             data: {
               fileId: "f_1001",
-              fileName: "photo.png",
-              mimeType: "image/png",
-              fileSize: 4,
+              fileName,
+              mimeType,
+              fileSize: mimeType === "application/pdf" ? 2048 : 4,
               accessUrl: "/api/file/content/f_1001?expires=999&signature=sig",
+              downloadUrl: "/api/file/content/f_1001?expires=999&signature=sig&download=true",
               encryptFlag: false
             }
           });
@@ -187,23 +221,24 @@ describe("hidechat backend realtime flow", () => {
     );
   });
 
-  it("connects backend api, sends websocket message, receives realtime push, and uploads an image", async () => {
+  it("connects backend api, sends websocket message, receives realtime push, and uploads image and file messages", async () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await screen.findByRole("heading", { name: "今日运势", level: 1 });
-    await user.type(screen.getByLabelText("幸运数字"), "2468");
-    await user.click(screen.getByRole("button", { name: "进入隐藏入口" }));
+    await screen.findByRole("button", { name: "进入" });
+    await user.type(screen.getByLabelText("请输入今日幸运数字"), "2468");
+    await user.click(screen.getByRole("button", { name: "进入" }));
+    await screen.findByRole("button", { name: "使用当前信息进入" });
     await user.click(screen.getByRole("button", { name: "使用当前信息进入" }));
     await user.type(screen.getByLabelText("PIN 解锁"), "1357");
     await user.click(screen.getByRole("button", { name: "设置 PIN 并继续" }));
 
-    await screen.findByRole("heading", { name: "Anna" });
+    await waitFor(() => expect(screen.getAllByText("Anna").length).toBeGreaterThan(0));
     expect(MockWebSocket.instances).toHaveLength(1);
     const socket = MockWebSocket.instances[0];
     socket.emitOpen();
 
-    await user.type(screen.getByPlaceholderText("输入加密前的原始消息文本"), "后端实时文本");
+    await user.type(screen.getByLabelText("消息输入框"), "后端实时文本");
     await user.click(screen.getByRole("button", { name: "发送" }));
 
     await waitFor(() => expect(socket.sentMessages).toHaveLength(1));
@@ -249,6 +284,23 @@ describe("hidechat backend realtime flow", () => {
 
     await waitFor(() => expect(socket.sentMessages).toHaveLength(3));
     expect(screen.getByRole("img", { name: "photo.png" })).toBeInTheDocument();
+
+    const genericFileInput = screen.getByLabelText("发送文件");
+    await user.upload(genericFileInput, new File(["pdf"], "project-draft-v3.pdf", { type: "application/pdf" }));
+
+    await waitFor(() => expect(socket.sentMessages).toHaveLength(4));
+    expect(screen.getByText("project-draft-v3.pdf")).toBeInTheDocument();
+    expect(screen.getByText("2.0 KB · 点击可下载")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "下载文件" })).toBeInTheDocument();
+
+    await user.clear(screen.getByPlaceholderText("搜索聊天记录"));
+    await user.type(screen.getByPlaceholderText("搜索聊天记录"), "project-draft");
+    expect(screen.getByText("project-draft-v3.pdf")).toBeInTheDocument();
+    expect(screen.queryByText("后端实时文本")).not.toBeInTheDocument();
+
+    await user.clear(screen.getByPlaceholderText("搜索聊天记录"));
+    await user.type(screen.getByPlaceholderText("搜索聊天记录"), "not-found");
+    expect(screen.getByText("没有匹配的聊天记录")).toBeInTheDocument();
   });
 });
 

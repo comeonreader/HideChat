@@ -3,7 +3,10 @@
 STATE: COMPLETE
 PROJECT: HideChat
 OWNER: Codex
-LAST_UPDATED: 2026-04-09
+LAST_UPDATED: 2026-04-10
+
+## 更新记录
+- 2026-04-10: 完善邮箱验证码发送功能，添加 MailPit 测试邮件服务
 
 ## Objective
 
@@ -25,7 +28,9 @@ LAST_UPDATED: 2026-04-09
 - auth / user / contact / conversation / message / file / websocket / system 模块已实现
 - Redis / PostgreSQL Testcontainers 集成测试恢复
 - 文件模块改为真实本地落盘，新增认证上传入口与签名下载地址
-- 邮件验证码支持 SMTP 发送，未配置 SMTP 时回退日志实现
+- 邮件验证码支持 SMTP 发送，默认集成 MailPit 测试邮件服务
+- 开发环境默认启用邮件发送功能
+- 改进日志发送器，提供更友好的开发提示
 - HTTP 安全头、CORS 白名单、认证限流、WebSocket 消息限流已接入
 - 新增后端集成测试：
   - `GET /api/system/fortune/today`
@@ -47,6 +52,7 @@ LAST_UPDATED: 2026-04-09
   - 真实 API 登录后通过 WebSocket 发送文本消息
   - WebSocket ACK / 对端推送处理
   - 图片上传并发送图片消息
+- 更新邮箱验证码发送提示，引导用户查看测试邮件服务
 
 ### 测试基础设施
 
@@ -111,6 +117,12 @@ LAST_UPDATED: 2026-04-09
 - frontend/tests/e2e/app-flow.test.tsx
 - frontend/tests/e2e/backend-realtime.test.tsx
 - docs/STATUS.md
+- docker-compose.yml (添加 MailPit 服务)
+- .env.example (添加邮件配置)
+- README.md (更新邮件服务说明)
+- frontend/src/app/App.tsx (更新验证码发送提示)
+- backend/src/main/resources/application.yml (默认启用邮件功能)
+- backend/src/main/java/com/hidechat/modules/auth/service/impl/LoggingEmailCodeSender.java (改进开发提示)
 
 ## Commands Run
 

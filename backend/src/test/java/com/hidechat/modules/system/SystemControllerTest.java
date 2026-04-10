@@ -2,6 +2,7 @@ package com.hidechat.modules.system;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -10,6 +11,7 @@ import com.hidechat.modules.system.controller.SystemController;
 import com.hidechat.modules.system.service.SystemService;
 import com.hidechat.modules.system.vo.DisguiseConfigVO;
 import com.hidechat.modules.system.vo.FortuneTodayVO;
+import com.hidechat.modules.system.vo.LuckyNumberVerifyVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,5 +55,22 @@ class SystemControllerTest {
         mockMvc.perform(get("/api/system/disguise-config"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.siteTitle").value("今日运势"));
+    }
+
+    @Test
+    void shouldVerifyLuckyNumber() throws Exception {
+        LuckyNumberVerifyVO vo = new LuckyNumberVerifyVO();
+        vo.setMatched(Boolean.TRUE);
+        when(systemService.verifyLuckyNumber("2468")).thenReturn(vo);
+
+        mockMvc.perform(post("/api/system/disguise/verify-lucky-number")
+                .contentType("application/json")
+                .content("""
+                    {
+                      "luckyNumber": "2468"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.matched").value(true));
     }
 }

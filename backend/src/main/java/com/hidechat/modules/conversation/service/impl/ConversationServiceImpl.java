@@ -32,6 +32,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ConversationServiceImpl implements ConversationService {
 
+    private static final String PREVIEW_STRATEGY_MASKED = "masked";
+    private static final String ONLINE_STATUS_RECENTLY_ACTIVE = "recently_active";
+    private static final String ONLINE_STATUS_TEXT = "工作日 09:00 - 22:00 活跃";
+
     private final ImConversationMapper conversationMapper;
     private final ImContactMapper contactMapper;
     private final ImUnreadCounterMapper unreadCounterMapper;
@@ -162,6 +166,7 @@ public class ConversationServiceImpl implements ConversationService {
                 vo.setConversationId(conversation.getConversationId());
                 vo.setPeerUid(peerUid);
                 if (profile != null) {
+                    vo.setDisplayUserId(profile.getDisplayUserId());
                     vo.setPeerNickname(profile.getNickname());
                     vo.setPeerAvatar(profile.getAvatarUrl());
                     vo.setRemarkName(profile.getNickname());
@@ -172,11 +177,14 @@ public class ConversationServiceImpl implements ConversationService {
                 } else {
                     vo.setPinned(Boolean.FALSE);
                 }
-                vo.setLastMessagePreview(conversation.getLastMessagePreview());
+                vo.setPreviewStrategy(PREVIEW_STRATEGY_MASKED);
+                vo.setLastMessagePreview(maskPreview(conversation.getLastMessageType(), conversation.getLastMessagePreview()));
                 vo.setLastMessageType(conversation.getLastMessageType());
                 vo.setLastMessageAt(conversation.getLastMessageAt() == null ? null
                     : conversation.getLastMessageAt().atZone(zoneId).toInstant().toEpochMilli());
                 vo.setUnreadCount(counter == null ? 0 : counter.getUnreadCount());
+                vo.setOnlineStatus(ONLINE_STATUS_RECENTLY_ACTIVE);
+                vo.setOnlineStatusText(ONLINE_STATUS_TEXT);
                 if (vo.getUnreadCount() == null) {
                     vo.setUnreadCount(0);
                 }
@@ -186,6 +194,24 @@ public class ConversationServiceImpl implements ConversationService {
                 return vo;
             })
             .collect(Collectors.toList());
+    }
+
+    private String maskPreview(String lastMessageType, String lastMessagePreview) {
+        if ("image".equals(lastMessageType)) {
+            return "[图片消息]";
+        }
+        if ("file".equals(lastMessageType)) {
+            return "[文件消息]";
+        }
+        if ("text".equals(lastMessageType) || "system".equals(lastMessageType)) {
+            return "[文本消息]";
+        }
+        if ("[图片消息]".equals(lastMessagePreview)
+            || "[文件消息]".equals(lastMessagePreview)
+            || "[文本消息]".equals(lastMessagePreview)) {
+            return lastMessagePreview;
+        }
+        return "[文本消息]";
     }
 
     private Map<String, ImContactEntity> loadContactMap(String ownerUid, Collection<String> peerUids) {

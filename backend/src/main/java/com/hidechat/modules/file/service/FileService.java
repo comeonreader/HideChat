@@ -16,5 +16,5 @@ public interface FileService {
 
     FileInfoVO getFileInfo(String userUid, String fileId);
 
-    PublicFileContent loadPublicContent(String fileId, long expiresAtEpochSeconds, String signature);
+    PublicFileContent loadPublicContent(String fileId, long expiresAtEpochSeconds, String signature, boolean download);
 }

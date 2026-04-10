@@ -18,10 +18,13 @@
         今天也值得被认真对待。慢一点、稳一点，给自己一份柔和的期待。
       </p>
 
-      <form class="input-box" action="fortune.html" method="get">
-        <input type="password" name="code" placeholder="请输入今日幸运数字" aria-label="请输入今日幸运数字" />
-        <button class="btn btn-primary" type="submit">进入</button>
+      <form class="input-box" id="luckyNumberForm">
+        <input type="password" id="luckyNumberInput" name="code" placeholder="请输入今日幸运数字" aria-label="请输入今日幸运数字" />
+        <button class="btn btn-primary" id="submitButton" type="submit">进入</button>
       </form>
+      <p class="hero-sub" id="statusText" style="margin-top:14px; min-height:24px;">
+        输入后将通过后端接口校验，再决定进入隐藏入口或继续浏览运势内容。
+      </p>
 
       <div class="hero-footer">
         <span>今日关键词：放松、行动、耐心</span>
@@ -29,5 +32,56 @@
       </div>
     </div>
   </div>
+  <script>
+    const form = document.getElementById("luckyNumberForm");
+    const input = document.getElementById("luckyNumberInput");
+    const button = document.getElementById("submitButton");
+    const statusText = document.getElementById("statusText");
+
+    function mockVerifyLuckyNumber(luckyNumber) {
+      const mockLuckyCode = "2048";
+
+      return new Promise((resolve) => {
+        window.setTimeout(() => {
+          resolve({
+            matched: luckyNumber === mockLuckyCode,
+            luckyNumber
+          });
+        }, 500);
+      });
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const luckyNumber = input.value.trim();
+      if (!luckyNumber) {
+        statusText.textContent = "请输入今日幸运数字。";
+        input.focus();
+        return;
+      }
+
+      button.disabled = true;
+      statusText.textContent = "正在通过后端接口校验...";
+
+      try {
+        // 原型页使用 mock 校验；真实接入时替换为 POST /api/system/disguise/verify-lucky-number
+        const result = await mockVerifyLuckyNumber(luckyNumber);
+
+        if (result.matched) {
+          statusText.textContent = "校验通过，正在进入隐藏入口...";
+          window.location.href = "chat-list.html";
+          return;
+        }
+
+        statusText.textContent = "继续为你展示今日运势...";
+        const nextUrl = new URL("fortune.html", window.location.href);
+        nextUrl.searchParams.set("luckyNumber", result.luckyNumber);
+        window.location.href = nextUrl.toString();
+      } finally {
+        button.disabled = false;
+      }
+    });
+  </script>
 </body>
 </html>

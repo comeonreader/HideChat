@@ -2,6 +2,7 @@ package com.hidechat.integration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hidechat.common.constant.AuthConstants;
 import com.hidechat.common.util.IdGenerator;
@@ -57,10 +58,31 @@ class ContactIntegrationTest extends AbstractIntegrationTest {
         assertEquals(3, body.path("data").size());
 
         assertEquals("u_peer_1", body.path("data").get(0).path("peerUid").asText());
+        assertEquals("hide_upeer1", body.path("data").get(0).path("displayUserId").asText());
         assertEquals("Pinned Friend", body.path("data").get(0).path("remarkName").asText());
         assertEquals("u_peer_3", body.path("data").get(1).path("peerUid").asText());
         assertEquals("u_peer_2", body.path("data").get(2).path("peerUid").asText());
         assertNotNull(body.path("data").get(1).path("lastMessageAt"));
+    }
+
+    @Test
+    void shouldReturnRecentContactsSortedByCreatedAtDesc() {
+        seedUser("u_owner", "Owner", "owner@hide.chat");
+        seedUser("u_peer_1", "Alice", "alice@hide.chat");
+        seedUser("u_peer_2", "Bob", "bob@hide.chat");
+
+        HttpHeaders headers = bearerHeaders("u_owner");
+        assertEquals(200, addContact(headers, "u_peer_1", "Alice").getStatusCode().value());
+        assertEquals(200, addContact(headers, "u_peer_2", "Bob").getStatusCode().value());
+
+        ResponseEntity<String> response = get("/api/contact/recent?limit=2", headers);
+
+        assertEquals(200, response.getStatusCode().value());
+        var body = readTree(response);
+        assertEquals(2, body.path("data").size());
+        assertEquals("u_peer_2", body.path("data").get(0).path("peerUid").asText());
+        assertEquals("hide_upeer2", body.path("data").get(0).path("displayUserId").asText());
+        assertTrue(body.path("data").get(0).path("createdAt").asLong() >= body.path("data").get(1).path("createdAt").asLong());
     }
 
     private ResponseEntity<String> addContact(HttpHeaders headers, String peerUid, String remarkName) {

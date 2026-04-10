@@ -47,7 +47,7 @@ mybatis-plus:
 
 hidechat:
   mail:
-    enabled: ${HIDECHAT_MAIL_ENABLED:false}
+    enabled: ${HIDECHAT_MAIL_ENABLED:true}
     from-address: ${HIDECHAT_MAIL_FROM_ADDRESS:noreply@hidechat.local}
     from-name: ${HIDECHAT_MAIL_FROM_NAME:HideChat}
   file:

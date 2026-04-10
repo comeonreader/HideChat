@@ -37,6 +37,8 @@ class UserProfileIntegrationTest extends AbstractIntegrationTest {
 
         assertEquals(200, getResponse.getStatusCode().value());
         assertEquals("Integration User", readTree(getResponse).path("data").path("nickname").asText());
+        assertEquals("hide_uit1001", readTree(getResponse).path("data").path("displayUserId").asText());
+        assertTrue(readTree(getResponse).path("data").path("email").isMissingNode());
 
         String cacheKey = RedisKeyConstants.userProfileKey("u_it_1001");
         String cachedJson = stringRedisTemplate.opsForValue().get(cacheKey);
@@ -62,7 +64,16 @@ class UserProfileIntegrationTest extends AbstractIntegrationTest {
         String refreshedJson = stringRedisTemplate.opsForValue().get(cacheKey);
         assertNotNull(refreshedJson);
         assertTrue(refreshedJson.contains("Updated User"));
-        assertTrue(refreshedJson.contains("integration@hide.chat"));
+        assertTrue(refreshedJson.contains("hide_uit1001"));
+    }
+
+    @Test
+    void shouldRejectProfileRequestWithoutAuthentication() {
+        seedUser("u_it_1001", "Integration User", "integration@hide.chat");
+
+        ResponseEntity<String> response = get("/api/user/me", new HttpHeaders());
+
+        assertTrue(response.getStatusCode().value() == 401 || response.getStatusCode().value() == 403);
     }
 
     @Test
