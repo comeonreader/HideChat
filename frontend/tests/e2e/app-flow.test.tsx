@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../src/app/App";
-import { loadCachedConversation } from "../../src/storage";
+import { clearCachedConversations, deleteLocalSecret, loadCachedConversation } from "../../src/storage";
 
 class IdleWebSocket {
   static OPEN = 1;
@@ -21,9 +21,12 @@ class IdleWebSocket {
 }
 
 describe("hidechat app flow", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.restoreAllMocks();
     vi.stubGlobal("WebSocket", IdleWebSocket as unknown as typeof WebSocket);
+    window.localStorage.clear();
+    await clearCachedConversations();
+    await deleteLocalSecret("pin:u_1001");
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
@@ -304,6 +307,49 @@ describe("hidechat app flow", () => {
 
     await user.click(screen.getByRole("button", { name: "注册并进入" }));
     await screen.findByText("已连接后端账号，请继续设置或输入 PIN。");
+  });
+
+  it("still enters chat when restoring message history fails", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.mocked(fetch);
+    const originalImplementation = fetchMock.getMockImplementation();
+    if (!originalImplementation) {
+      throw new Error("missing base fetch mock");
+    }
+    fetchMock.mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url
+      );
+
+      if (url.includes("/api/message/history")) {
+        return jsonResponse({
+          code: 500001,
+          message: "历史消息恢复失败",
+          data: null
+        });
+      }
+
+      return (await originalImplementation(input, init)) as Response;
+    });
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: "查看彩蛋" });
+    await user.type(screen.getByLabelText("请输入今日幸运数字"), "2468");
+    await user.click(screen.getByRole("button", { name: "查看彩蛋" }));
+
+    await screen.findByRole("button", { name: "使用当前信息进入" });
+    await user.click(screen.getByRole("button", { name: "使用当前信息进入" }));
+
+    await user.type(screen.getByLabelText("PIN 解锁"), "1357");
+    await user.click(screen.getByRole("button", { name: "设置 PIN 并继续" }));
+
+    await waitFor(() => expect(screen.getAllByText("Anna").length).toBeGreaterThan(0));
+    expect(screen.getByText("PIN 已设置，已进入聊天页；部分历史消息恢复失败。")).toBeInTheDocument();
   });
 });
 

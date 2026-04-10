@@ -24,7 +24,14 @@ import {
   uploadFile
 } from "../api/client";
 import { createSecretVerifier, decryptString, encryptString, verifySecret } from "../crypto";
-import { clearCachedConversations, listCachedConversations, loadLocalSecret, saveCachedConversation, saveLocalSecret } from "../storage";
+import {
+  clearCachedConversations,
+  type CachedConversationRecord,
+  listCachedConversations,
+  loadLocalSecret,
+  saveCachedConversation,
+  saveLocalSecret
+} from "../storage";
 import {
   createLocalVaultState,
   lockLocalVault,
@@ -62,6 +69,10 @@ interface AuthFormState {
   password: string;
   newPassword: string;
   emailCode: string;
+}
+
+interface MessageHydrationResult {
+  hasPartialFailure: boolean;
 }
 
 const AUTO_LOCK_IDLE_MS = Number(import.meta.env.VITE_AUTO_LOCK_IDLE_MS ?? 2 * 60 * 1000);
@@ -318,10 +329,14 @@ export function App() {
       return;
     }
 
-    await hydrateMessagesAfterUnlock(trimmedPin, session.pinKdfParams);
+    const hydrationResult = await hydrateMessagesAfterUnlock(trimmedPin, session.pinKdfParams);
     setSession((prev) => (prev ? { ...prev, pin: trimmedPin } : prev));
     setVaultState((prev) => unlockLocalVault(prev, AUTO_LOCK_IDLE_MS));
-    setStatusText("PIN 校验通过，已恢复隐藏聊天界面。");
+    setStatusText(
+      hydrationResult.hasPartialFailure
+        ? "PIN 校验通过，已进入聊天页；部分历史消息恢复失败。"
+        : "PIN 校验通过，已恢复隐藏聊天界面。"
+    );
     setScreen("chat");
     setChatView(activeConversationId ? "conversation" : "list");
   }
@@ -421,8 +436,12 @@ export function App() {
         : prev
     );
     setVaultState((prev) => unlockLocalVault(syncLocalVaultPinState(prev, true), AUTO_LOCK_IDLE_MS));
-    await hydrateMessagesAfterUnlock(trimmedPin, verifier.kdfParams);
-    setStatusText("PIN 已设置，本地缓存会以加密形式写入 IndexedDB。");
+    const hydrationResult = await hydrateMessagesAfterUnlock(trimmedPin, verifier.kdfParams);
+    setStatusText(
+      hydrationResult.hasPartialFailure
+        ? "PIN 已设置，已进入聊天页；部分历史消息恢复失败。"
+        : "PIN 已设置，本地缓存会以加密形式写入 IndexedDB。"
+    );
     setScreen("chat");
     setChatView(activeConversationId ? "conversation" : "list");
   }
@@ -759,12 +778,21 @@ export function App() {
     }
   }
 
-  async function hydrateMessagesAfterUnlock(pin: string, kdfParams: HiddenSession["pinKdfParams"]) {
+  async function hydrateMessagesAfterUnlock(
+    pin: string,
+    kdfParams: HiddenSession["pinKdfParams"]
+  ): Promise<MessageHydrationResult> {
     if (!kdfParams) {
-      return;
+      return { hasPartialFailure: false };
     }
 
-    const cachedRecords = await listCachedConversations();
+    let hasPartialFailure = false;
+    let cachedRecords: CachedConversationRecord[] = [];
+    try {
+      cachedRecords = await listCachedConversations();
+    } catch {
+      hasPartialFailure = true;
+    }
     const restoredEntries = await Promise.all(
       cachedRecords.map(async (record) => {
         try {
@@ -782,13 +810,21 @@ export function App() {
     const missingHistoryEntries = await Promise.all(
       conversations
         .filter((conversation) => !restoredMessages[conversation.conversationId])
-        .map(async (conversation) => [conversation.conversationId, await listMessageHistory(conversation.conversationId)] as const)
+        .map(async (conversation) => {
+          try {
+            return [conversation.conversationId, await listMessageHistory(conversation.conversationId)] as const;
+          } catch {
+            hasPartialFailure = true;
+            return [conversation.conversationId, []] as const;
+          }
+        })
     );
 
     setMessages({
       ...Object.fromEntries(missingHistoryEntries),
       ...restoredMessages
     });
+    return { hasPartialFailure };
   }
 
   function openConversation(conversationId: string) {
