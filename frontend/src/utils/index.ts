@@ -16,7 +16,7 @@ export function createMessage(input: {
     receiverUid: input.receiverUid,
     payload: input.payload,
     messageType: input.messageType ?? "text",
-    payloadType: input.payloadType ?? "text",
+    payloadType: input.payloadType ?? "plain",
     fileId: input.fileId ?? null,
     clientMsgTime: Date.now(),
     serverMsgTime: Date.now(),

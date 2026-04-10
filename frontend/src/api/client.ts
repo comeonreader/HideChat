@@ -465,7 +465,7 @@ export async function sendMessage(input: {
         conversationId: input.conversationId,
         receiverUid: input.receiverUid,
         messageType: input.messageType ?? "text",
-        payloadType: input.payloadType ?? "text",
+        payloadType: input.payloadType ?? (input.messageType === "text" || !input.messageType ? "plain" : "ref"),
         payload: input.payload,
         fileId: input.fileId,
         clientMsgTime: input.clientMsgTime

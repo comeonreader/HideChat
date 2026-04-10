@@ -470,7 +470,7 @@ export function App() {
       conversationId: activeConversation.conversationId,
       receiverUid: activeConversation.peerUid,
       messageType: "text",
-      payloadType: "text",
+      payloadType: "plain",
       payload: rawPayload
     });
   }
@@ -504,7 +504,7 @@ export function App() {
     receiverUid: string;
     payload: string;
     messageType: "text" | "image" | "file";
-    payloadType: "text" | "ref";
+    payloadType: "plain" | "ref";
     fileId?: string;
   }) {
     if (!session) {

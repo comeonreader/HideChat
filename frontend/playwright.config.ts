@@ -6,6 +6,7 @@ const backendBaseUrl = `http://127.0.0.1:${backendPort}`;
 
 export default defineConfig({
   testDir: "./tests/browser",
+  testIgnore: ["**/real-*.spec.ts"],
   timeout: 30_000,
   expect: {
     timeout: 5_000

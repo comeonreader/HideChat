@@ -213,6 +213,26 @@ class MessageServiceImplTest {
         assertEquals(400001, exception.getCode());
     }
 
+    @Test
+    void shouldAcceptLegacyTextPayloadTypeAlias() {
+        when(conversationMapper.selectOne(any())).thenReturn(buildConversation());
+        when(contactMapper.selectOne(any()))
+            .thenReturn(buildContact("u_1001", "u_1002"))
+            .thenReturn(buildContact("u_1002", "u_1001"));
+        when(unreadCounterMapper.selectOne(any())).thenReturn(null);
+
+        SendMessageRequest request = new SendMessageRequest();
+        request.setConversationId("c_1001");
+        request.setReceiverUid("u_1002");
+        request.setMessageType("text");
+        request.setPayloadType("text");
+        request.setPayload("hello");
+
+        MessageItemVO result = messageService.sendMessage("u_1001", request);
+
+        assertEquals("plain", result.getPayloadType());
+    }
+
     private ImConversationEntity buildConversation() {
         return buildConversation("c_1001", "u_1001", "u_1002");
     }

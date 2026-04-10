@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -49,6 +50,9 @@ abstract class AbstractIntegrationTest {
 
     @Autowired
     protected JwtTokenProvider jwtTokenProvider;
+
+    @LocalServerPort
+    protected int port;
 
     @BeforeEach
     void resetState() {
@@ -109,5 +113,9 @@ abstract class AbstractIntegrationTest {
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to parse response body", exception);
         }
+    }
+
+    protected String absoluteUrl(String path) {
+        return "http://localhost:" + port + path;
     }
 }

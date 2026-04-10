@@ -72,7 +72,7 @@ public class MessageServiceImpl implements MessageService {
         if (!Objects.equals(peerUid, request.getReceiverUid())) {
             throw new BusinessException(420201, "接收方不属于当前会话");
         }
-        validateMessageRequest(request);
+        String normalizedPayloadType = validateAndNormalizePayloadType(request);
 
         LocalDateTime now = LocalDateTime.now(clock);
         ImMessageEntity entity = new ImMessageEntity();
@@ -84,7 +84,7 @@ public class MessageServiceImpl implements MessageService {
         entity.setSenderUid(userUid);
         entity.setReceiverUid(request.getReceiverUid());
         entity.setMessageType(request.getMessageType());
-        entity.setPayloadType(request.getPayloadType());
+        entity.setPayloadType(normalizedPayloadType);
         entity.setPayload(request.getPayload());
         entity.setFileId(request.getFileId());
         entity.setServerStatus("delivered");
@@ -158,11 +158,12 @@ public class MessageServiceImpl implements MessageService {
         refreshUnreadCounter(userUid, request.getConversationId(), LocalDateTime.now(clock));
     }
 
-    private void validateMessageRequest(SendMessageRequest request) {
+    private String validateAndNormalizePayloadType(SendMessageRequest request) {
         if (!List.of("text", "image", "file", "system").contains(request.getMessageType())) {
             throw new BusinessException(400001, "消息类型不支持");
         }
-        if (!List.of("plain", "ref", "encrypted").contains(request.getPayloadType())) {
+        String normalizedPayloadType = normalizePayloadType(request.getPayloadType(), request.getMessageType());
+        if (!List.of("plain", "ref", "encrypted").contains(normalizedPayloadType)) {
             throw new BusinessException(400001, "消息负载类型不支持");
         }
         if (List.of("image", "file").contains(request.getMessageType()) && !StringUtils.hasText(request.getFileId())) {
@@ -171,6 +172,14 @@ public class MessageServiceImpl implements MessageService {
         if ("text".equals(request.getMessageType()) && !StringUtils.hasText(request.getPayload())) {
             throw new BusinessException(400001, "文本消息内容不能为空");
         }
+        return normalizedPayloadType;
+    }
+
+    private String normalizePayloadType(String payloadType, String messageType) {
+        if ("text".equals(messageType) && "text".equals(payloadType)) {
+            return "plain";
+        }
+        return payloadType;
     }
 
     private ImConversationEntity requireConversationMember(String conversationId, String userUid) {

@@ -55,7 +55,12 @@ class FileUploadIntegrationTest extends AbstractIntegrationTest {
 
         String accessUrl = readTree(completeResponse).path("data").path("accessUrl").asText();
         String downloadUrl = readTree(completeResponse).path("data").path("downloadUrl").asText();
-        ResponseEntity<byte[]> contentResponse = restTemplate.exchange(accessUrl, HttpMethod.GET, null, byte[].class);
+        ResponseEntity<byte[]> contentResponse = restTemplate.exchange(
+            absoluteUrl(accessUrl),
+            HttpMethod.GET,
+            null,
+            byte[].class
+        );
 
         assertEquals(200, contentResponse.getStatusCode().value());
         assertEquals(MediaType.IMAGE_PNG, contentResponse.getHeaders().getContentType());

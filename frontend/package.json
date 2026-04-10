@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:e2e:real": "playwright test -c playwright.real.config.ts",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:legacy": "vitest run tests/e2e",
     "test:e2e:install": "playwright install chromium",
