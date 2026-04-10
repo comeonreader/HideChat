@@ -26,7 +26,7 @@ export async function enterAuthFromDisguise(page: Page): Promise<void> {
   await expect(page.getByText("隐藏入口验证")).toBeVisible();
 }
 
-export async function registerAndReachPin(page: Page, email: string, nickname: string, password: string): Promise<void> {
+export async function registerAndEnterChat(page: Page, email: string, nickname: string, password: string): Promise<void> {
   await page.getByRole("button", { name: "注册" }).click();
   await page.getByPlaceholder("邮箱").first().fill(email);
   await page.getByPlaceholder("昵称").fill(nickname);
@@ -35,26 +35,13 @@ export async function registerAndReachPin(page: Page, email: string, nickname: s
   await page.getByRole("button", { name: "发送验证码" }).click();
   await expect(page.getByText("验证码已发送，请查收邮箱；如使用本地 MailPit，可在 http://localhost:8025 查看。")).toBeVisible();
   await page.getByRole("button", { name: "注册并进入" }).click();
-  await expect(page.getByText("已连接后端账号，请继续设置或输入 PIN。")).toBeVisible();
-}
-
-export async function loginAndReachPin(page: Page, email: string, password: string): Promise<void> {
-  await page.getByPlaceholder("邮箱").first().fill(email);
-  await page.getByPlaceholder("密码").fill(password);
-  await page.getByRole("button", { name: "使用当前信息进入" }).click();
-  await expect(page.getByText("已连接后端账号，请继续设置或输入 PIN。")).toBeVisible();
-}
-
-export async function setPinAndEnter(page: Page, pin: string): Promise<void> {
-  await page.getByLabel("PIN 解锁").fill(pin);
-  await page.getByRole("button", { name: "设置 PIN 并继续" }).click();
   await expect(page.getByRole("button", { name: /搜索 \/ 添加好友|添加好友/ })).toBeVisible();
 }
 
-export async function unlockWithPin(page: Page, pin: string): Promise<void> {
-  await expect(page.getByRole("button", { name: "解锁消息缓存" })).toBeVisible();
-  await page.getByLabel("PIN 解锁").fill(pin);
-  await page.getByRole("button", { name: "解锁消息缓存" }).click();
+export async function loginAndEnterChat(page: Page, email: string, password: string): Promise<void> {
+  await page.getByPlaceholder("邮箱").first().fill(email);
+  await page.getByPlaceholder("密码").fill(password);
+  await page.getByRole("button", { name: "使用当前信息进入" }).click();
   await expect(page.getByRole("button", { name: /搜索 \/ 添加好友|添加好友/ })).toBeVisible();
 }
 

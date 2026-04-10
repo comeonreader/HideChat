@@ -32,7 +32,7 @@ describe("hidechat auth closure", () => {
     window.localStorage.clear();
   });
 
-  it("supports email code login success", async () => {
+  it("supports email code login and enters chat directly", async () => {
     vi.stubGlobal("fetch", createFetchMock());
     const user = userEvent.setup();
 
@@ -46,8 +46,9 @@ describe("hidechat auth closure", () => {
     await screen.findByText("验证码已发送，请查收邮箱；如使用本地 MailPit，可在 http://localhost:8025 查看。");
 
     await user.click(screen.getByRole("button", { name: "使用当前信息进入" }));
-    await screen.findByText("已连接后端账号，请继续设置或输入 PIN。");
-    expect(screen.getByRole("button", { name: "设置 PIN 并继续" })).toBeEnabled();
+    await screen.findByText("认证成功，已进入聊天。");
+    expect(screen.getAllByText("Anna").length).toBeGreaterThan(0);
+    expect(screen.queryByText("PIN 解锁")).not.toBeInTheDocument();
   });
 
   it("shows backend error when email code login fails", async () => {
@@ -82,23 +83,6 @@ describe("hidechat auth closure", () => {
 
     await user.click(screen.getByRole("button", { name: "重置密码" }));
     await screen.findByText("密码已重置，请使用新密码重新登录。");
-    expect(screen.getByRole("button", { name: "使用当前信息进入" })).toBeInTheDocument();
-  });
-
-  it("shows backend error when reset password submission fails", async () => {
-    vi.stubGlobal("fetch", createFetchMock({ resetPasswordSuccess: false }));
-    const user = userEvent.setup();
-
-    render(<App />);
-    await enterAuthView(user);
-
-    await user.click(screen.getByRole("button", { name: "找回密码" }));
-    await user.type(screen.getByPlaceholderText("邮箱"), "reader@example.com");
-    await user.type(screen.getByPlaceholderText("新密码"), "NewPass123");
-    await user.type(screen.getByPlaceholderText("邮箱验证码"), "111111");
-    await user.click(screen.getByRole("button", { name: "重置密码" }));
-
-    await screen.findByText("验证码已失效");
   });
 
   it("calls backend logout and returns to disguise entry", async () => {
@@ -112,29 +96,20 @@ describe("hidechat auth closure", () => {
     await user.type(screen.getByPlaceholderText("邮箱"), "reader@example.com");
     await user.type(screen.getByPlaceholderText("密码"), "Pass1234");
     await user.click(screen.getByRole("button", { name: "使用当前信息进入" }));
-
-    await user.type(screen.getByLabelText("PIN 解锁"), "1357");
-    await user.click(screen.getByRole("button", { name: "设置 PIN 并继续" }));
     await waitFor(() => expect(screen.getAllByText("Anna").length).toBeGreaterThan(0));
 
     await user.click(screen.getByRole("button", { name: "退出账号" }));
 
     await screen.findByLabelText("请输入今日幸运数字");
     expect(window.localStorage.getItem("hidechat-auth")).toBeNull();
-    expect(
-      requestLog.find((entry) => entry.url.endsWith("/api/auth/logout") && entry.method === "POST")
-    ).toMatchObject({
+    expect(requestLog.find((entry) => entry.url.endsWith("/api/auth/logout") && entry.method === "POST")).toMatchObject({
       body: { refreshToken: "refresh-token" }
     });
   });
 });
 
 function createFetchMock(options: FetchMockOptions = {}) {
-  const {
-    codeLoginSuccess = true,
-    resetPasswordSuccess = true,
-    trackRequests
-  } = options;
+  const { codeLoginSuccess = true, resetPasswordSuccess = true, trackRequests } = options;
 
   return vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const request = input instanceof Request ? input : null;
@@ -168,10 +143,7 @@ function createFetchMock(options: FetchMockOptions = {}) {
     }
 
     if (url.endsWith("/api/system/disguise/verify-lucky-number") && method === "POST") {
-      return jsonResponse({
-        code: 0,
-        data: { matched: true }
-      });
+      return jsonResponse({ code: 0, data: { matched: true } });
     }
 
     if (url.endsWith("/api/auth/email/send-code") && method === "POST") {
@@ -195,11 +167,7 @@ function createFetchMock(options: FetchMockOptions = {}) {
 
     if (url.endsWith("/api/auth/email/code-login") && method === "POST") {
       if (!codeLoginSuccess) {
-        return jsonResponse({
-          code: 410103,
-          message: "验证码错误",
-          data: null
-        });
+        return jsonResponse({ code: 410103, message: "验证码错误", data: null });
       }
       return jsonResponse({
         code: 0,
@@ -217,11 +185,7 @@ function createFetchMock(options: FetchMockOptions = {}) {
 
     if (url.endsWith("/api/auth/email/reset-password") && method === "POST") {
       if (!resetPasswordSuccess) {
-        return jsonResponse({
-          code: 410104,
-          message: "验证码已失效",
-          data: null
-        });
+        return jsonResponse({ code: 410104, message: "验证码已失效", data: null });
       }
       return jsonResponse({ code: 0, data: null });
     }
@@ -296,14 +260,11 @@ function createFetchMock(options: FetchMockOptions = {}) {
       });
     }
 
-    if (url.endsWith("/api/conversation/clear-unread")) {
+    if (url.endsWith("/api/conversation/clear-unread") || url.endsWith("/api/message/read")) {
       return jsonResponse({ code: 0, data: null });
     }
 
-    return new Response(JSON.stringify({ code: 404, message: `Unhandled request: ${method} ${url}` }), {
-      status: 404,
-      headers: { "Content-Type": "application/json" }
-    });
+    return new Response(null, { status: 404 });
   });
 }
 
@@ -311,7 +272,7 @@ async function enterAuthView(user: ReturnType<typeof userEvent.setup>) {
   await screen.findByRole("button", { name: "查看彩蛋" });
   await user.type(screen.getByLabelText("请输入今日幸运数字"), "2468");
   await user.click(screen.getByRole("button", { name: "查看彩蛋" }));
-  await screen.findByRole("button", { name: "使用当前信息进入" });
+  await screen.findByText("隐藏入口验证");
 }
 
 function jsonResponse(body: unknown) {

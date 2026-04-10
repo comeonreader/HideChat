@@ -2,10 +2,9 @@ import { expect, test } from "@playwright/test";
 import {
   createTinyPngBuffer,
   enterAuthFromDisguise,
-  loginAndReachPin,
+  loginAndEnterChat,
   openApp,
-  resetMockServer,
-  setPinAndEnter
+  resetMockServer
 } from "./support";
 
 test.beforeEach(async ({ request }) => {
@@ -15,8 +14,7 @@ test.beforeEach(async ({ request }) => {
 test("支持真实浏览器下的搜索用户、加好友、创建会话、文本消息收发与图片文件发送", async ({ page }) => {
   await openApp(page);
   await enterAuthFromDisguise(page);
-  await loginAndReachPin(page, "reader@example.com", "Pass1234");
-  await setPinAndEnter(page, "1357");
+  await loginAndEnterChat(page, "reader@example.com", "Pass1234");
   await expect(page.getByText("已连接后端聊天通道，实时消息已启用。")).toBeVisible();
 
   await page.getByRole("button", { name: "搜索 / 添加好友" }).click();

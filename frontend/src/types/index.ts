@@ -13,10 +13,6 @@ export interface AuthTokens {
 
 export interface HiddenSession {
   user: LocalUser;
-  pin?: string;
-  pinVerifierHash?: string;
-  pinSalt?: string;
-  pinKdfParams?: KdfParams;
   tokens?: AuthTokens;
 }
 
@@ -96,22 +92,6 @@ export interface LuckyNumberVerifyResult {
 export interface ApiErrorPayload {
   code?: number;
   message?: string;
-}
-
-export interface KdfParams {
-  algorithm: "PBKDF2";
-  hash: "SHA-256";
-  iterations: number;
-  salt: string;
-  keyLength: number;
-}
-
-export interface SecretVerifierRecord {
-  verifierHash: string;
-  salt: string;
-  kdfParams: KdfParams;
-  createdAt: number;
-  updatedAt: number;
 }
 
 export interface UserSearchItem {

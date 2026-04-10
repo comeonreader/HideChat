@@ -1,57 +1,75 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   clearCachedConversations,
-  deleteLocalSecret,
   listCachedConversations,
-  loadLocalSecret,
-  saveCachedConversation,
-  saveLocalSecret
+  loadCachedConversation,
+  saveCachedConversation
 } from "../../src/storage";
 
-describe("encrypted storage", () => {
+describe("conversation storage", () => {
   beforeEach(async () => {
     await clearCachedConversations();
-    await deleteLocalSecret("pin:u_1001");
   });
 
   it("persists and lists cached conversations", async () => {
     await saveCachedConversation({
       conversationId: "c_1001",
-      encryptedPayload: "ciphertext",
+      messages: [
+        {
+          messageId: "m_1001",
+          conversationId: "c_1001",
+          senderUid: "u_1001",
+          receiverUid: "u_2001",
+          payload: "hello",
+          messageType: "text",
+          serverMsgTime: 1_000,
+          serverStatus: "delivered"
+        }
+      ],
       updatedAt: 1_000
     });
 
     await expect(listCachedConversations()).resolves.toEqual([
       {
         conversationId: "c_1001",
-        encryptedPayload: "ciphertext",
+        messages: [
+          expect.objectContaining({
+            messageId: "m_1001",
+            payload: "hello"
+          })
+        ],
         updatedAt: 1_000
       }
     ]);
   });
 
-  it("persists and removes local secret records", async () => {
-    await saveLocalSecret({
-      key: "pin:u_1001",
-      verifierHash: "verifier",
-      salt: "salt",
-      kdfParams: {
-        algorithm: "PBKDF2",
-        hash: "SHA-256",
-        iterations: 120_000,
-        salt: "salt",
-        keyLength: 32
-      },
-      createdAt: 1_000,
-      updatedAt: 1_000
+  it("loads a cached conversation without any PIN dependency", async () => {
+    await saveCachedConversation({
+      conversationId: "c_2001",
+      messages: [
+        {
+          messageId: "m_2001",
+          conversationId: "c_2001",
+          senderUid: "u_1002",
+          receiverUid: "u_1001",
+          payload: "cached message",
+          messageType: "text",
+          serverMsgTime: 2_000,
+          serverStatus: "read"
+        }
+      ],
+      updatedAt: 2_000
     });
 
-    await expect(loadLocalSecret("pin:u_1001")).resolves.toMatchObject({
-      key: "pin:u_1001",
-      verifierHash: "verifier"
-    });
-
-    await deleteLocalSecret("pin:u_1001");
-    await expect(loadLocalSecret("pin:u_1001")).resolves.toBeNull();
+    await expect(loadCachedConversation("c_2001")).resolves.toEqual(
+      expect.objectContaining({
+        conversationId: "c_2001",
+        messages: [
+          expect.objectContaining({
+            payload: "cached message"
+          })
+        ]
+      })
+    );
   });
 });

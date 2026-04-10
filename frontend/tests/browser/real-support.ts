@@ -1,5 +1,5 @@
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
-import { openApp, setPinAndEnter, submitLuckyNumber, unlockWithPin } from "./support";
+import { openApp, submitLuckyNumber } from "./support";
 
 const gatewayBaseUrl = process.env.PLAYWRIGHT_REAL_BASE_URL ?? "http://127.0.0.1:5173";
 const mailPitBaseUrl = process.env.PLAYWRIGHT_MAILPIT_BASE_URL ?? "http://127.0.0.1:8025";
@@ -8,11 +8,9 @@ interface TestUser {
   email: string;
   nickname: string;
   password: string;
-  pin: string;
 }
 
 interface MailPitMessage {
-  ID: string;
   Subject: string;
   Created?: string;
   To: Array<{ Address: string }>;
@@ -24,8 +22,7 @@ export function createRealUser(prefix: string): TestUser {
   return {
     email: `${prefix}-${suffix}@example.com`,
     nickname: `${prefix}-${suffix.slice(-4)}`,
-    password: "Abcd1234",
-    pin: "1357"
+    password: "Abcd1234"
   };
 }
 
@@ -82,8 +79,7 @@ export async function registerUserViaUi(page: Page, request: APIRequestContext, 
   const code = await waitForEmailCode(request, user.email, sentAt);
   await page.getByPlaceholder("邮箱验证码").fill(code);
   await page.getByRole("button", { name: "注册并进入" }).click();
-  await expect(page.getByText("已连接后端账号，请继续设置或输入 PIN。")).toBeVisible();
-  await setPinAndEnter(page, user.pin);
+  await expect(page.getByRole("button", { name: /搜索 \/ 添加好友|添加好友/ })).toBeVisible();
 }
 
 export async function loginUserViaUi(page: Page, user: TestUser): Promise<void> {
@@ -93,15 +89,14 @@ export async function loginUserViaUi(page: Page, user: TestUser): Promise<void> 
   await page.getByPlaceholder("邮箱").first().fill(user.email);
   await page.getByPlaceholder("密码").fill(user.password);
   await page.getByRole("button", { name: "使用当前信息进入" }).click();
-  await expect(page.getByText("已连接后端账号，请继续设置或输入 PIN。")).toBeVisible();
-  await setPinAndEnter(page, user.pin);
+  await expect(page.getByRole("button", { name: /搜索 \/ 添加好友|添加好友/ })).toBeVisible();
 }
 
-export async function relockAndUnlock(page: Page, pin: string): Promise<void> {
+export async function reopenChatAfterDisguise(page: Page): Promise<void> {
   await page.getByRole("button", { name: "返回伪装页" }).click();
   await expect(page.getByLabel("请输入今日幸运数字")).toBeVisible();
   await submitLuckyNumber(page, "2468");
-  await unlockWithPin(page, pin);
+  await expect(page.getByRole("button", { name: /搜索 \/ 添加好友|添加好友/ })).toBeVisible();
 }
 
 async function waitForEmailCode(request: APIRequestContext, email: string, sentAt: number): Promise<string> {

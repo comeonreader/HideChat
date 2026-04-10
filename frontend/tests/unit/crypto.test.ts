@@ -1,19 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { createSecretVerifier, decryptString, encryptString, sha256Hex, verifySecret } from "../../src/crypto";
+import { deserializeMessageCache, serializeMessageCache, sha256Hex } from "../../src/crypto";
 
 describe("crypto helpers", () => {
   it("hashes lucky code deterministically", async () => {
-    await expect(sha256Hex("2468")).resolves.toHaveLength(64);
+    const first = await sha256Hex("2468");
+    const second = await sha256Hex("2468");
+    expect(first).toHaveLength(64);
+    expect(first).toBe(second);
   });
 
-  it("encrypts and decrypts payload with pin", async () => {
-    const verifier = await createSecretVerifier("1357");
-    const encrypted = await encryptString("1357", "hidechat", verifier.kdfParams);
-    await expect(decryptString("1357", encrypted, verifier.kdfParams)).resolves.toBe("hidechat");
-  });
-
-  it("rejects invalid pin against verifier", async () => {
-    const verifier = await createSecretVerifier("1357");
-    await expect(verifySecret("2468", verifier)).resolves.toBe(false);
+  it("serializes and deserializes cached messages", () => {
+    const payload = {
+      conversationId: "c_1001",
+      messages: [{ messageId: "m_1001", payload: "hello" }]
+    };
+    expect(deserializeMessageCache<typeof payload>(serializeMessageCache(payload))).toEqual(payload);
   });
 });
