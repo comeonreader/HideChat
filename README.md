@@ -158,7 +158,7 @@ HideChat 是一个面向手机和桌面浏览器的 Web 隐私聊天系统，核
 
 后端：
 
-- Java 17
+- Java 21
 - Spring Boot 3.3.5
 - Spring Security
 - Spring WebSocket
@@ -189,7 +189,7 @@ HideChat 是一个面向手机和桌面浏览器的 Web 隐私聊天系统，核
 
 ### 6.1 环境要求
 
-- Java 17+
+- Java 21+
 - Maven 3.9+
 - Node.js 20+
 - npm 10+

@@ -1,6 +1,4 @@
-FROM node:20-alpine AS build
-
-RUN apk add --no-cache maven openjdk17
+FROM maven:3.9.9-eclipse-temurin-21-alpine AS build
 
 WORKDIR /workspace
 
@@ -8,13 +6,11 @@ COPY pom.xml ./
 COPY src ./src
 RUN mvn -B clean package -DskipTests
 
-FROM build AS runtime
+FROM eclipse-temurin:21-jre-alpine AS runtime
 
 WORKDIR /app
 
 COPY --from=build /workspace/target/*.jar /app/app.jar
-
-RUN rm -rf /workspace/src /root/.m2
 
 EXPOSE 8080
 
