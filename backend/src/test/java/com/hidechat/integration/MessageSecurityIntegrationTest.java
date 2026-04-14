@@ -1,6 +1,7 @@
 package com.hidechat.integration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.hidechat.common.constant.AuthConstants;
 import com.hidechat.common.util.IdGenerator;
@@ -56,6 +57,86 @@ class MessageSecurityIntegrationTest extends AbstractIntegrationTest {
         ), intruderHeaders);
         assertEquals(200, readResponse.getStatusCode().value());
         assertEquals(403001, readTree(readResponse).path("code").asInt());
+    }
+
+    @Test
+    void shouldAllowMessagingAndHistoryWithoutMutualContactRelation() {
+        seedUser("u_a", "Alice", "alice@hide.chat");
+        seedUser("u_b", "Bob", "bob@hide.chat");
+
+        HttpHeaders aliceHeaders = bearerHeaders("u_a");
+        HttpHeaders bobHeaders = bearerHeaders("u_b");
+
+        ResponseEntity<String> addAliceContact = post("/api/contact/add", java.util.Map.of(
+            "peerUid", "u_b",
+            "remarkName", "Bob"
+        ), aliceHeaders);
+        assertEquals(200, addAliceContact.getStatusCode().value());
+        assertEquals(0, readTree(addAliceContact).path("code").asInt());
+
+        ResponseEntity<String> createConversationResponse = post("/api/conversation/single", java.util.Map.of(
+            "peerUid", "u_b"
+        ), aliceHeaders);
+        assertEquals(200, createConversationResponse.getStatusCode().value());
+        assertEquals(0, readTree(createConversationResponse).path("code").asInt());
+
+        String conversationId = readTree(createConversationResponse).path("data").path("conversationId").asText();
+        assertNotNull(conversationId);
+
+        ResponseEntity<String> sendFromAlice = post("/api/message/send", java.util.Map.of(
+            "messageId", "m_a_1",
+            "conversationId", conversationId,
+            "receiverUid", "u_b",
+            "messageType", "text",
+            "payloadType", "plain",
+            "payload", "hello bob",
+            "clientMsgTime", 1712534400000L
+        ), aliceHeaders);
+        assertEquals(200, sendFromAlice.getStatusCode().value());
+        assertEquals(0, readTree(sendFromAlice).path("code").asInt());
+
+        ResponseEntity<String> bobHistory = get("/api/message/history?conversationId=" + conversationId + "&pageSize=20", bobHeaders);
+        assertEquals(200, bobHistory.getStatusCode().value());
+        assertEquals(0, readTree(bobHistory).path("code").asInt());
+        assertEquals(1, readTree(bobHistory).path("data").path("list").size());
+        assertEquals("m_a_1", readTree(bobHistory).path("data").path("list").get(0).path("messageId").asText());
+
+        ResponseEntity<String> sendFromBob = post("/api/message/send", java.util.Map.of(
+            "messageId", "m_b_1",
+            "conversationId", conversationId,
+            "receiverUid", "u_a",
+            "messageType", "text",
+            "payloadType", "plain",
+            "payload", "hello alice",
+            "clientMsgTime", 1712534401000L
+        ), bobHeaders);
+        assertEquals(200, sendFromBob.getStatusCode().value());
+        assertEquals(0, readTree(sendFromBob).path("code").asInt());
+
+        ResponseEntity<String> addContactResponse = post("/api/contact/add", java.util.Map.of(
+            "peerUid", "u_a",
+            "remarkName", "Alice"
+        ), bobHeaders);
+        assertEquals(200, addContactResponse.getStatusCode().value());
+        assertEquals(0, readTree(addContactResponse).path("code").asInt());
+
+        ResponseEntity<String> sendAfterAdd = post("/api/message/send", java.util.Map.of(
+            "messageId", "m_b_2",
+            "conversationId", conversationId,
+            "receiverUid", "u_a",
+            "messageType", "text",
+            "payloadType", "plain",
+            "payload", "still works",
+            "clientMsgTime", 1712534402000L
+        ), bobHeaders);
+        assertEquals(200, sendAfterAdd.getStatusCode().value());
+        assertEquals(0, readTree(sendAfterAdd).path("code").asInt());
+
+        ResponseEntity<String> aliceHistory = get("/api/message/history?conversationId=" + conversationId + "&pageSize=20", aliceHeaders);
+        assertEquals(200, aliceHistory.getStatusCode().value());
+        assertEquals(0, readTree(aliceHistory).path("code").asInt());
+        assertEquals(3, readTree(aliceHistory).path("data").path("list").size());
+        assertEquals("m_b_2", readTree(aliceHistory).path("data").path("list").get(2).path("messageId").asText());
     }
 
     private void seedUser(String userUid, String nickname, String email) {

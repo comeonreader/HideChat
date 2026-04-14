@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -30,6 +31,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -119,6 +121,19 @@ class MessageServiceImplTest {
     }
 
     @Test
+    void shouldAllowHistoryWithoutContactRelationWhenUserIsConversationMember() {
+        when(conversationMapper.selectOne(any())).thenReturn(buildConversation());
+        when(messageMapper.selectList(any())).thenReturn(new ArrayList<>(List.of(
+            buildMessage("m_1001", LocalDateTime.of(2026, 4, 8, 0, 0, 1))
+        )));
+
+        MessageHistoryVO history = messageService.listHistory("u_1002", "c_1001", null, 20);
+
+        assertEquals(1, history.getList().size());
+        assertEquals("m_1001", history.getList().get(0).getMessageId());
+    }
+
+    @Test
     void shouldMarkMessagesReadAndClearUnreadCounter() {
         ImMessageEntity message = buildMessage("m_1001", LocalDateTime.of(2026, 4, 8, 0, 0, 1));
         message.setServerStatus("delivered");
@@ -194,6 +209,26 @@ class MessageServiceImplTest {
         assertEquals("f_1001", result.getFileId());
         assertEquals("[文件消息]", conversation.getLastMessagePreview());
         assertEquals("file", conversation.getLastMessageType());
+    }
+
+    @Test
+    void shouldSendMessageWithoutAnyContactRelation() {
+        when(conversationMapper.selectOne(any())).thenReturn(buildConversation());
+        when(contactMapper.selectOne(any())).thenReturn(null);
+        when(unreadCounterMapper.selectOne(any())).thenReturn(null);
+
+        SendMessageRequest request = new SendMessageRequest();
+        request.setConversationId("c_1001");
+        request.setReceiverUid("u_1002");
+        request.setMessageType("text");
+        request.setPayloadType("plain");
+        request.setPayload("hello");
+
+        MessageItemVO result = messageService.sendMessage("u_1001", request);
+
+        assertEquals("c_1001", result.getConversationId());
+        verify(contactMapper, never()).updateById(any(ImContactEntity.class));
+        verify(unreadCounterMapper).insert(any(ImUnreadCounterEntity.class));
     }
 
     @Test

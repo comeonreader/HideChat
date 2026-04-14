@@ -91,6 +91,16 @@ export function App() {
   });
 
   const wsRef = useRef<WebSocket | null>(null);
+  const conversationsRef = useRef<ConversationItem[]>([]);
+  const activeConversationIdRef = useRef("");
+
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversationId;
+  }, [activeConversationId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -151,22 +161,7 @@ export function App() {
     };
 
     socket.onmessage = (event) => {
-      try {
-        const envelope = JSON.parse(event.data) as WsEnvelope;
-        if (envelope.type === "CHAT_RECEIVE") {
-          applyIncomingMessage(normalizeIncomingMessage(envelope.data));
-          return;
-        }
-        if (envelope.type === "CHAT_ACK") {
-          reconcileAck(envelope.data);
-          return;
-        }
-        if (envelope.type === "CHAT_READ") {
-          applyReadReceipt(envelope.data);
-        }
-      } catch {
-        setStatusText("收到无法解析的实时消息，已忽略。");
-      }
+      void handleSocketMessage(event.data);
     };
 
     socket.onclose = () => {
@@ -182,6 +177,25 @@ export function App() {
       socket.close();
     };
   }, [screen, session]);
+
+  async function handleSocketMessage(rawData: string) {
+    try {
+      const envelope = JSON.parse(rawData) as WsEnvelope;
+      if (envelope.type === "CHAT_RECEIVE") {
+        await handleIncomingRealtimeMessage(normalizeIncomingMessage(envelope.data));
+        return;
+      }
+      if (envelope.type === "CHAT_ACK") {
+        reconcileAck(envelope.data);
+        return;
+      }
+      if (envelope.type === "CHAT_READ") {
+        applyReadReceipt(envelope.data);
+      }
+    } catch {
+      setStatusText("收到无法解析的实时消息，已忽略。");
+    }
+  }
 
   useEffect(() => {
     if (!session || screen !== "chat" || !activeConversationId) {
@@ -491,6 +505,17 @@ export function App() {
     );
   }
 
+  async function handleIncomingRealtimeMessage(message: ChatMessage) {
+    const hasConversation = conversationsRef.current.some((item) => item.conversationId === message.conversationId);
+    if (!hasConversation) {
+      const refreshedConversations = await refreshConversationList();
+      if (refreshedConversations.some((item) => item.conversationId === message.conversationId)) {
+        setStatusText("收到新会话消息，已同步会话列表。");
+      }
+    }
+    applyIncomingMessage(message);
+  }
+
   function reconcileAck(data: unknown) {
     const raw = data as Record<string, unknown>;
     const ackMessage = raw.message ? normalizeIncomingMessage(raw.message) : null;
@@ -538,6 +563,19 @@ export function App() {
       applyReadReceipt({ conversationId, messageIds });
     } catch {
       // Ignore read-sync failures so the chat view remains usable.
+    }
+  }
+
+  async function refreshConversationList(): Promise<ConversationItem[]> {
+    try {
+      const latestConversations = sortConversations(await listConversations());
+      setConversations(latestConversations);
+      if (!activeConversationIdRef.current && latestConversations.length > 0) {
+        setActiveConversationId(latestConversations[0].conversationId);
+      }
+      return latestConversations;
+    } catch {
+      return conversationsRef.current;
     }
   }
 
@@ -599,12 +637,13 @@ export function App() {
       tokens
     });
 
-    const [nextContacts, nextConversations, nextRecentContacts, nextMessages] = await Promise.all([
+    const nextConversationsPromise = listConversations().then(sortConversations);
+    const [nextContacts, nextConversations, nextRecentContacts] = await Promise.all([
       listContacts(),
-      listConversations(),
-      listRecentContacts(4).catch(() => []),
-      hydrateMessages(sortConversations(await listConversations()))
+      nextConversationsPromise,
+      listRecentContacts(4).catch(() => [])
     ]);
+    const nextMessages = await hydrateMessages(nextConversations);
 
     setContacts(sortContacts(nextContacts));
     setRecentContacts(sortRecentContacts(nextRecentContacts));
@@ -840,9 +879,10 @@ export function App() {
                 placeholder={inConversationLayout ? "搜索聊天记录" : "搜索"}
               />
             </div>
+            <div className="muted">最近会话</div>
           </div>
 
-          <ul className="list">
+          <ul className="list" aria-label="会话列表">
             {filteredConversations.length === 0 && (
               <li className="chat-item">
                 <div className="chat-main">
@@ -900,7 +940,7 @@ export function App() {
       <main className="main-panel">
         <div className="panel-header">
           <div>
-            <div className="name header-name">{activeConversation?.remarkName || activeConversation?.peerNickname || "最近联系人"}</div>
+            <div className="name header-name">{activeConversation?.remarkName || activeConversation?.peerNickname || "最近会话"}</div>
             <div className="muted">
               {activeConversation ? `${selectedContact?.peerNickname ?? "联系人"} 在线状态受保护 · ${(activeConversation.unreadCount ?? 0)} 条未读` : "选择左侧会话进入聊天"}
             </div>
@@ -923,7 +963,7 @@ export function App() {
             <div className="empty-illustration" />
             <div className="section-title">像微信一样熟悉的聊天列表</div>
             <div className="section-text">
-              左侧展示最近联系人与未读消息，手机端会自动切换为单列布局。所有会话预览已脱敏处理，只显示消息类型占位。
+              左侧展示最近会话与未读消息，手机端会自动切换为单列布局。会话列表基于当前 filteredConversations 数据渲染，所有预览继续保持脱敏占位。
             </div>
           </div>
         </div>

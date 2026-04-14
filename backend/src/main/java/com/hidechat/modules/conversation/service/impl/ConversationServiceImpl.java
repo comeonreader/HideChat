@@ -63,7 +63,7 @@ public class ConversationServiceImpl implements ConversationService {
     @Override
     @Transactional
     public ConversationItemVO createSingleConversation(String userUid, CreateSingleConversationRequest request) {
-        ensureContactExists(userUid, request.getPeerUid());
+        validatePeer(userUid, request.getPeerUid());
         ParticipantPair pair = orderParticipants(userUid, request.getPeerUid());
         ImConversationEntity entity = conversationMapper.selectOne(new LambdaQueryWrapper<ImConversationEntity>()
             .eq(ImConversationEntity::getUserAUid, pair.userA())
@@ -116,13 +116,11 @@ public class ConversationServiceImpl implements ConversationService {
         }
     }
 
-    private void ensureContactExists(String ownerUid, String peerUid) {
-        ImContactEntity contact = contactMapper.selectOne(new LambdaQueryWrapper<ImContactEntity>()
-            .eq(ImContactEntity::getOwnerUid, ownerUid)
-            .eq(ImContactEntity::getPeerUid, peerUid));
-        if (contact == null) {
-            throw new BusinessException(420101, "联系人不存在");
+    private void validatePeer(String userUid, String peerUid) {
+        if (Objects.equals(userUid, peerUid)) {
+            throw new BusinessException(400001, "不能与自己创建会话");
         }
+        userService.getUserProfile(peerUid);
     }
 
     private ImConversationEntity createConversationEntity(ParticipantPair pair) {

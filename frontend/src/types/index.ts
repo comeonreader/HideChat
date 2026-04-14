@@ -40,6 +40,8 @@ export interface ConversationItem {
   peerNickname?: string;
   peerAvatar?: string | null;
   remarkName: string;
+  previewStrategy: string;
+  // 会话列表预览保持脱敏占位，不返回真实消息文本或真实文件名。
   lastMessagePreview: string;
   lastMessageType?: string;
   lastMessageAt: number;

@@ -3,6 +3,7 @@ package com.hidechat.modules.conversation;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -64,10 +65,9 @@ class ConversationServiceImplTest {
     }
 
     @Test
-    void shouldCreateConversationWhenNotExists() {
-        when(contactMapper.selectOne(any())).thenReturn(buildContact("u_1001", "u_1002"));
+    void shouldCreateConversationWhenNotExistsWithoutContact() {
         when(conversationMapper.selectOne(any())).thenReturn(null);
-        mockCommonLookups();
+        mockCommonLookups(false);
 
         CreateSingleConversationRequest request = new CreateSingleConversationRequest();
         request.setPeerUid("u_1002");
@@ -76,6 +76,21 @@ class ConversationServiceImplTest {
 
         assertEquals("u_1002", vo.getPeerUid());
         verify(conversationMapper).insert(any(ImConversationEntity.class));
+    }
+
+    @Test
+    void shouldReuseExistingConversationWithoutContact() {
+        ImConversationEntity existingConversation = buildConversation("c_1001", "u_1001", "u_1002");
+        when(conversationMapper.selectOne(any())).thenReturn(existingConversation);
+        mockCommonLookups(false);
+
+        CreateSingleConversationRequest request = new CreateSingleConversationRequest();
+        request.setPeerUid("u_1002");
+
+        ConversationItemVO vo = conversationService.createSingleConversation("u_1001", request);
+
+        assertEquals("c_1001", vo.getConversationId());
+        verify(conversationMapper, never()).insert(any(ImConversationEntity.class));
     }
 
     @Test
@@ -130,13 +145,27 @@ class ConversationServiceImplTest {
     }
 
     @Test
-    void shouldRejectConversationWithoutContact() {
-        when(contactMapper.selectOne(any())).thenReturn(null);
+    void shouldRejectConversationWhenPeerIsSelf() {
+        CreateSingleConversationRequest request = new CreateSingleConversationRequest();
+        request.setPeerUid("u_1001");
+
+        BusinessException exception = assertThrows(BusinessException.class,
+            () -> conversationService.createSingleConversation("u_1001", request));
+
+        assertEquals(400001, exception.getCode());
+    }
+
+    @Test
+    void shouldRejectConversationWhenPeerMissing() {
+        when(userService.getUserProfile("u_1002")).thenThrow(new BusinessException(404001, "用户不存在"));
 
         CreateSingleConversationRequest request = new CreateSingleConversationRequest();
         request.setPeerUid("u_1002");
 
-        assertThrows(BusinessException.class, () -> conversationService.createSingleConversation("u_1001", request));
+        BusinessException exception = assertThrows(BusinessException.class,
+            () -> conversationService.createSingleConversation("u_1001", request));
+
+        assertEquals(404001, exception.getCode());
     }
 
     @Test
@@ -152,8 +181,9 @@ class ConversationServiceImplTest {
         assertEquals(403001, exception.getCode());
     }
 
-    private void mockCommonLookups() {
-        when(contactMapper.selectList(any())).thenReturn(List.of(buildContact("u_1001", "u_1002")));
+    private void mockCommonLookups(boolean withContact) {
+        when(userService.getUserProfile("u_1002")).thenReturn(buildProfile("u_1002"));
+        when(contactMapper.selectList(any())).thenReturn(withContact ? List.of(buildContact("u_1001", "u_1002")) : List.of());
         when(unreadCounterMapper.selectList(any())).thenReturn(List.of());
         when(userService.getUserProfiles(any())).thenReturn(Map.of("u_1002", buildProfile("u_1002")));
     }

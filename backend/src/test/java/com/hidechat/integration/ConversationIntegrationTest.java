@@ -101,6 +101,33 @@ class ConversationIntegrationTest extends AbstractIntegrationTest {
         ).getUnreadCount());
     }
 
+    @Test
+    void shouldCreateSingleConversationWithoutContactRelation() {
+        seedUser("u_owner", "Owner", "owner@hide.chat");
+        seedUser("u_peer", "Peer", "peer@hide.chat");
+
+        HttpHeaders headers = bearerHeaders("u_owner");
+
+        CreateSingleConversationRequest createRequest = new CreateSingleConversationRequest();
+        createRequest.setPeerUid("u_peer");
+
+        ResponseEntity<String> firstResponse = post("/api/conversation/single", createRequest, headers);
+        ResponseEntity<String> secondResponse = post("/api/conversation/single", createRequest, headers);
+
+        assertEquals(200, firstResponse.getStatusCode().value());
+        assertEquals(0, readTree(firstResponse).path("code").asInt());
+        assertEquals(0, readTree(secondResponse).path("code").asInt());
+
+        String firstConversationId = readTree(firstResponse).path("data").path("conversationId").asText();
+        String secondConversationId = readTree(secondResponse).path("data").path("conversationId").asText();
+        assertEquals(firstConversationId, secondConversationId);
+        assertEquals(1L, conversationMapper.selectCount(
+            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ImConversationEntity>()
+                .eq(ImConversationEntity::getUserAUid, "u_owner")
+                .eq(ImConversationEntity::getUserBUid, "u_peer")
+        ));
+    }
+
     private void seedConversation(String conversationId,
                                   String ownerUid,
                                   String peerUid,

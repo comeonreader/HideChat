@@ -38,6 +38,7 @@ describe("hidechat backend realtime flow", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     MockWebSocket.instances = [];
+    window.localStorage.clear();
     vi.stubGlobal("WebSocket", MockWebSocket as unknown as typeof WebSocket);
     vi.stubGlobal("fetch", createFetchMock());
   });
@@ -104,9 +105,64 @@ describe("hidechat backend realtime flow", () => {
     await user.upload(screen.getByLabelText("发送文件"), new File(["doc"], "notes.txt", { type: "text/plain" }));
     await screen.findByText("notes.txt");
   });
+
+  it("refreshes conversation list before showing a realtime message from an unknown conversation", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      createFetchMock({
+        conversations: [[], [{ conversationId: "c_2002", peerUid: "u_2002", peerNickname: "Ben", remarkName: "Ben", lastMessagePreview: "", lastMessageAt: 1712620800300, unreadCount: 1 }]]
+      })
+    );
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: "查看彩蛋" });
+    await user.type(screen.getByLabelText("请输入今日幸运数字"), "2468");
+    await user.click(screen.getByRole("button", { name: "查看彩蛋" }));
+    await screen.findByText("隐藏入口验证");
+    await user.click(screen.getByRole("button", { name: "使用当前信息进入" }));
+
+    expect(MockWebSocket.instances).toHaveLength(1);
+    const socket = MockWebSocket.instances[0];
+    socket.emitOpen();
+
+    socket.emitMessage({
+      type: "CHAT_RECEIVE",
+      data: {
+        messageId: "m_3001",
+        conversationId: "c_2002",
+        senderUid: "u_2002",
+        receiverUid: "u_1001",
+        messageType: "text",
+        payloadType: "plain",
+        payload: "陌生会话的第一条消息",
+        serverMsgTime: 1712620800300,
+        serverStatus: "delivered"
+      }
+    });
+
+    const conversationButton = await screen.findByRole("button", { name: /Ben/ });
+    await user.click(conversationButton);
+    await screen.findByText("陌生会话的第一条消息");
+  });
 });
 
-function createFetchMock() {
+function createFetchMock(options?: {
+  conversations?: Array<
+    Array<{
+      conversationId: string;
+      peerUid: string;
+      peerNickname: string;
+      remarkName: string;
+      lastMessagePreview: string;
+      lastMessageAt: number;
+      unreadCount: number;
+    }>
+  >;
+}) {
+  let conversationCallCount = 0;
+
   return vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const request = input instanceof Request ? input : null;
     const url = String(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
@@ -195,9 +251,9 @@ function createFetchMock() {
     }
 
     if (url.endsWith("/api/conversation/list")) {
-      return jsonResponse({
-        code: 0,
-        data: [
+      const configuredConversations = options?.conversations;
+      const conversationData =
+        configuredConversations?.[Math.min(conversationCallCount++, configuredConversations.length - 1)] ?? [
           {
             conversationId: "c_1001",
             peerUid: "u_2001",
@@ -207,7 +263,10 @@ function createFetchMock() {
             lastMessageAt: 1712620800000,
             unreadCount: 0
           }
-        ]
+        ];
+      return jsonResponse({
+        code: 0,
+        data: conversationData
       });
     }
 
