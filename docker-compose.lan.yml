@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: hidechat-postgres-lan
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-hidechat_dev}
+      POSTGRES_USER: ${POSTGRES_USER:-hidechat_dev}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hidechat_dev}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_lan:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: hidechat-redis-lan
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data_lan:/data
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: hidechat/backend:local
+    container_name: hidechat-backend-lan
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-hidechat_dev}?currentSchema=${POSTGRES_SCHEMA:-hidechat}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-hidechat_dev}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-hidechat_dev}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      HIDECHAT_SECURITY_JWT_SECRET: ${HIDECHAT_JWT_SECRET:-hidechat-dev-secret-key-hidechat-dev-secret-key-2026}
+      HIDECHAT_ALLOWED_ORIGIN: ${HIDECHAT_ALLOWED_ORIGIN:-http://localhost:18080}
+      HIDECHAT_MAIL_ENABLED: false
+    ports:
+      - "18080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: hidechat/frontend:local
+    container_name: hidechat-frontend-lan
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: http://localhost:18080
+    ports:
+      - "18081:80"
+
+volumes:
+  postgres_data_lan:
+  redis_data_lan:

@@ -23,6 +23,7 @@ describe("chat sidebar copy", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     window.localStorage.clear();
+    installMatchMediaMock(true);
     vi.stubGlobal("WebSocket", IdleWebSocket as unknown as typeof WebSocket);
     vi.stubGlobal("fetch", createFetchMock());
   });
@@ -36,11 +37,10 @@ describe("chat sidebar copy", () => {
     await user.click(screen.getByRole("button", { name: "查看彩蛋" }));
     await screen.findByText("隐藏入口验证");
     await user.click(screen.getByRole("button", { name: "使用当前信息进入" }));
-    await user.click(await screen.findByRole("button", { name: "返回列表" }));
 
     await waitFor(() => expect(screen.getByText("最近会话")).toBeInTheDocument());
-    expect(screen.getByRole("list", { name: "会话列表" })).toBeInTheDocument();
-    expect(screen.getByText(/会话列表基于当前 filteredConversations 数据渲染，所有预览继续保持脱敏占位。/)).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "最近会话列表" })).toBeInTheDocument();
+    expect(screen.getByText("点击最近会话后进入聊天详情页")).toBeInTheDocument();
     expect(screen.getByText("[文件消息]")).toBeInTheDocument();
     expect(screen.queryByText("项目草稿-v3.pdf")).not.toBeInTheDocument();
     expect(screen.queryByText("我晚点把图片发你，记得看一下。")).not.toBeInTheDocument();
@@ -173,5 +173,21 @@ function jsonResponse(payload: Record<string, unknown>) {
         "Content-Type": "application/json"
       }
     })
+  );
+}
+
+function installMatchMediaMock(matches: boolean) {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn().mockImplementation((query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }))
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { DisguiseEntryPage } from "../pages/disguise/DisguiseEntryPage";
+import { MobileBottomNav } from "../components/mobile/MobileBottomNav";
 import {
   addContact,
   clearConversationUnread,
@@ -23,11 +23,12 @@ import {
   sendMessage,
   uploadFile
 } from "../api/client";
-import {
-  clearCachedConversations,
-  listCachedConversations,
-  saveCachedConversation
-} from "../storage";
+import { DisguiseEntryPage } from "../pages/disguise/DisguiseEntryPage";
+import { MobileConversationDetailPage } from "../pages/mobile/MobileConversationDetailPage";
+import { MobileConversationListPage } from "../pages/mobile/MobileConversationListPage";
+import { MobileFortunePage } from "../pages/mobile/MobileFortunePage";
+import { MobileFriendsPage } from "../pages/mobile/MobileFriendsPage";
+import { clearCachedConversations, listCachedConversations, saveCachedConversation } from "../storage";
 import type {
   ChatMessage,
   ContactItem,
@@ -46,6 +47,21 @@ type PublicView = "lucky" | "fortune";
 type AuthMode = "login" | "register" | "reset";
 type LoginMethod = "password" | "code";
 type ChatView = "list" | "conversation" | "add-friend";
+type MobilePage =
+  | { name: "chat_list" }
+  | { name: "chat_detail"; conversationId: string }
+  | { name: "friends" }
+  | { name: "fortune" };
+
+const MOBILE_VIEWPORT_QUERY = "(max-width: 900px)";
+
+function getDefaultChatView(hasConversation: boolean): ChatView {
+  return hasConversation ? "conversation" : "list";
+}
+
+function resolvePostUnlockMobilePage(): MobilePage {
+  return { name: "chat_list" };
+}
 
 interface WsEnvelope {
   type: string;
@@ -64,6 +80,13 @@ export function App() {
   const [screen, setScreen] = useState<Screen>("disguise");
   const [publicView, setPublicView] = useState<PublicView>("lucky");
   const [chatView, setChatView] = useState<ChatView>("list");
+  const [mobilePage, setMobilePage] = useState<MobilePage>(resolvePostUnlockMobilePage);
+  const [isMobileViewport, setIsMobileViewport] = useState(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return false;
+    }
+    return window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
+  });
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [loginMethod, setLoginMethod] = useState<LoginMethod>("password");
   const [session, setSession] = useState<HiddenSession | null>(null);
@@ -71,7 +94,7 @@ export function App() {
   const [recentContacts, setRecentContacts] = useState<RecentContactItem[]>([]);
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({});
-  const [activeConversationId, setActiveConversationId] = useState<string>("");
+  const [activeConversationId, setActiveConversationId] = useState("");
   const [composer, setComposer] = useState("");
   const [statusText, setStatusText] = useState("运势页已加载，输入幸运数字查看今日彩蛋。");
   const [authLoading, setAuthLoading] = useState(false);
@@ -93,6 +116,7 @@ export function App() {
   const wsRef = useRef<WebSocket | null>(null);
   const conversationsRef = useRef<ConversationItem[]>([]);
   const activeConversationIdRef = useRef("");
+  const previousViewportRef = useRef(isMobileViewport);
 
   useEffect(() => {
     conversationsRef.current = conversations;
@@ -101,6 +125,27 @@ export function App() {
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
   }, [activeConversationId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia(MOBILE_VIEWPORT_QUERY);
+    const handleChange = (event: MediaQueryListEvent) => {
+      setIsMobileViewport(event.matches);
+    };
+
+    setIsMobileViewport(mediaQuery.matches);
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", handleChange);
+      return () => mediaQuery.removeEventListener("change", handleChange);
+    }
+
+    mediaQuery.addListener(handleChange);
+    return () => mediaQuery.removeListener(handleChange);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -178,36 +223,59 @@ export function App() {
     };
   }, [screen, session]);
 
-  async function handleSocketMessage(rawData: string) {
-    try {
-      const envelope = JSON.parse(rawData) as WsEnvelope;
-      if (envelope.type === "CHAT_RECEIVE") {
-        await handleIncomingRealtimeMessage(normalizeIncomingMessage(envelope.data));
-        return;
-      }
-      if (envelope.type === "CHAT_ACK") {
-        reconcileAck(envelope.data);
-        return;
-      }
-      if (envelope.type === "CHAT_READ") {
-        applyReadReceipt(envelope.data);
-      }
-    } catch {
-      setStatusText("收到无法解析的实时消息，已忽略。");
-    }
-  }
-
   useEffect(() => {
-    if (!session || screen !== "chat" || !activeConversationId) {
+    if (screen !== "chat" || previousViewportRef.current === isMobileViewport) {
       return;
     }
-    void clearConversationUnread(activeConversationId).catch(() => undefined);
-  }, [activeConversationId, screen, session]);
 
-  const activeConversation = conversations.find((item) => item.conversationId === activeConversationId) ?? conversations[0];
-  const currentMessages = activeConversation ? messages[activeConversation.conversationId] ?? [] : [];
+    previousViewportRef.current = isMobileViewport;
+    if (isMobileViewport) {
+      if (chatView === "add-friend") {
+        setMobilePage({ name: "friends" });
+        return;
+      }
+      setMobilePage(resolvePostUnlockMobilePage());
+      return;
+    }
+
+    if (mobilePage.name === "friends") {
+      setChatView("add-friend");
+      return;
+    }
+    if (mobilePage.name === "chat_detail" && activeConversationId) {
+      setChatView("conversation");
+      return;
+    }
+    setChatView("list");
+  }, [activeConversationId, chatView, isMobileViewport, mobilePage, screen]);
+
+  useEffect(() => {
+    if (!activeConversationId) {
+      return;
+    }
+    const exists = conversations.some((item) => item.conversationId === activeConversationId);
+    if (exists) {
+      return;
+    }
+    setActiveConversationId("");
+    if (isMobileViewport && mobilePage.name === "chat_detail") {
+      setMobilePage(resolvePostUnlockMobilePage());
+    }
+    if (!isMobileViewport && chatView === "conversation") {
+      setChatView("list");
+    }
+  }, [activeConversationId, chatView, conversations, isMobileViewport, mobilePage]);
+
+  const activeConversation = conversations.find((item) => item.conversationId === activeConversationId) ?? null;
+  const currentMessages = activeConversationId ? messages[activeConversationId] ?? [] : [];
+  const isDesktopConversationView = !isMobileViewport && chatView === "conversation" && Boolean(activeConversation);
+  const isMobileConversationView =
+    isMobileViewport &&
+    mobilePage.name === "chat_detail" &&
+    activeConversationId === mobilePage.conversationId &&
+    Boolean(activeConversation);
   const filteredConversations = conversations.filter((conversation) => {
-    if (chatView === "conversation") {
+    if (!isMobileViewport && chatView === "conversation") {
       return true;
     }
     if (!chatSearchQuery.trim()) {
@@ -228,13 +296,28 @@ export function App() {
           lastMessageAt: activeConversation.lastMessageAt
         }
       : null);
-  const visibleMessages =
-    chatView === "conversation" && chatSearchQuery.trim()
+  const visibleDesktopMessages =
+    isDesktopConversationView && chatSearchQuery.trim()
       ? currentMessages.filter((message) => matchesMessageSearch(message, chatSearchQuery))
       : currentMessages;
 
   useEffect(() => {
+    if (!session || screen !== "chat" || !activeConversationId) {
+      return;
+    }
+    const conversationVisible = isDesktopConversationView || isMobileConversationView;
+    if (!conversationVisible) {
+      return;
+    }
+    void clearConversationUnread(activeConversationId).catch(() => undefined);
+  }, [activeConversationId, isDesktopConversationView, isMobileConversationView, screen, session]);
+
+  useEffect(() => {
     if (!session || screen !== "chat" || !activeConversation) {
+      return;
+    }
+    const conversationVisible = isDesktopConversationView || isMobileConversationView;
+    if (!conversationVisible) {
       return;
     }
     const unreadMessageIds = currentMessages
@@ -244,7 +327,26 @@ export function App() {
       return;
     }
     void syncReadState(activeConversation.conversationId, unreadMessageIds);
-  }, [activeConversation, currentMessages, screen, session]);
+  }, [activeConversation, currentMessages, isDesktopConversationView, isMobileConversationView, screen, session]);
+
+  async function handleSocketMessage(rawData: string) {
+    try {
+      const envelope = JSON.parse(rawData) as WsEnvelope;
+      if (envelope.type === "CHAT_RECEIVE") {
+        await handleIncomingRealtimeMessage(normalizeIncomingMessage(envelope.data));
+        return;
+      }
+      if (envelope.type === "CHAT_ACK") {
+        reconcileAck(envelope.data);
+        return;
+      }
+      if (envelope.type === "CHAT_READ") {
+        applyReadReceipt(envelope.data);
+      }
+    } catch {
+      setStatusText("收到无法解析的实时消息，已忽略。");
+    }
+  }
 
   async function handleAuthSubmit() {
     setAuthLoading(true);
@@ -335,7 +437,11 @@ export function App() {
       setContactForm({ peerUid: "", remarkName: "" });
       setFriendSearchQuery("");
       setUserSearchResults([]);
-      setChatView("conversation");
+      if (isMobileViewport) {
+        setMobilePage({ name: "chat_detail", conversationId: conversation.conversationId });
+      } else {
+        setChatView("conversation");
+      }
       if (!messages[conversation.conversationId]) {
         const history = await listMessageHistory(conversation.conversationId).catch(() => []);
         setMessages((prev) => ({ ...prev, [conversation.conversationId]: history }));
@@ -570,9 +676,6 @@ export function App() {
     try {
       const latestConversations = sortConversations(await listConversations());
       setConversations(latestConversations);
-      if (!activeConversationIdRef.current && latestConversations.length > 0) {
-        setActiveConversationId(latestConversations[0].conversationId);
-      }
       return latestConversations;
     } catch {
       return conversationsRef.current;
@@ -585,6 +688,7 @@ export function App() {
     setScreen("disguise");
     setPublicView("lucky");
     setChatView("list");
+    setMobilePage(resolvePostUnlockMobilePage());
     setStatusText("已返回伪装入口。");
   }
 
@@ -622,6 +726,7 @@ export function App() {
     setScreen("disguise");
     setPublicView("lucky");
     setChatView("list");
+    setMobilePage(resolvePostUnlockMobilePage());
     setAuthMode("login");
     setLoginMethod("password");
     setStatusText(nextStatus);
@@ -644,15 +749,21 @@ export function App() {
       listRecentContacts(4).catch(() => [])
     ]);
     const nextMessages = await hydrateMessages(nextConversations);
+    const defaultConversationId = nextConversations[0]?.conversationId ?? "";
 
     setContacts(sortContacts(nextContacts));
     setRecentContacts(sortRecentContacts(nextRecentContacts));
-    setConversations(sortConversations(nextConversations));
+    setConversations(nextConversations);
     setMessages(nextMessages);
-    setActiveConversationId(nextConversations[0]?.conversationId ?? "");
+    setActiveConversationId(isMobileViewport ? "" : defaultConversationId);
     if (enterChat) {
       setScreen("chat");
-      setChatView(nextConversations[0]?.conversationId ? "conversation" : "list");
+      if (isMobileViewport) {
+        setMobilePage(resolvePostUnlockMobilePage());
+        setChatView("list");
+      } else {
+        setChatView(getDefaultChatView(Boolean(defaultConversationId)));
+      }
     }
   }
 
@@ -677,7 +788,35 @@ export function App() {
 
   function openConversation(conversationId: string) {
     setActiveConversationId(conversationId);
-    setChatView("conversation");
+    if (isMobileViewport) {
+      setMobilePage({ name: "chat_detail", conversationId });
+    } else {
+      setChatView("conversation");
+    }
+  }
+
+  function showMobileChatList() {
+    setMobilePage({ name: "chat_list" });
+    if (!isMobileViewport) {
+      setChatView("list");
+    }
+  }
+
+  function showFriendsPage() {
+    if (isMobileViewport) {
+      setMobilePage({ name: "friends" });
+      return;
+    }
+    setChatView("add-friend");
+  }
+
+  function showFortunePage() {
+    if (isMobileViewport && screen === "chat") {
+      setMobilePage({ name: "fortune" });
+      return;
+    }
+    setPublicView("fortune");
+    setScreen("disguise");
   }
 
   async function handleFriendSearch() {
@@ -704,6 +843,25 @@ export function App() {
     }
   }
 
+  function handleMobileFortuneVerified() {
+    setMobilePage(resolvePostUnlockMobilePage());
+    setStatusText("幸运数字校验通过，已返回最近会话页。");
+  }
+
+  function getConversationTitle(conversation: ConversationItem): string {
+    return conversation.remarkName || conversation.peerNickname || conversation.peerUid;
+  }
+
+  function getMobileNavSection(): "chat" | "friends" | "fortune" {
+    if (mobilePage.name === "friends") {
+      return "friends";
+    }
+    if (mobilePage.name === "fortune") {
+      return "fortune";
+    }
+    return "chat";
+  }
+
   return (
     <main className={screen === "chat" ? "app-root app-root--chat" : "app-root"}>
       {screen === "disguise" && renderPublicView()}
@@ -722,7 +880,14 @@ export function App() {
         onLuckyNumberVerified={() => {
           if (session?.tokens?.accessToken) {
             setScreen("chat");
-            setChatView(activeConversationId ? "conversation" : "list");
+            if (isMobileViewport) {
+              setMobilePage(resolvePostUnlockMobilePage());
+              setChatView("list");
+            } else {
+              const nextConversationId = activeConversationId || conversations[0]?.conversationId || "";
+              setActiveConversationId(nextConversationId);
+              setChatView(getDefaultChatView(Boolean(nextConversationId)));
+            }
             setStatusText("幸运数字校验通过，已进入聊天。");
           } else {
             setScreen("auth");
@@ -849,6 +1014,20 @@ export function App() {
   }
 
   function renderChatShell() {
+    if (isMobileViewport) {
+      return (
+        <div className="chat-page chat-page--mobile">
+          <div className="mobile-chat-shell">{renderMobilePage()}</div>
+          <MobileBottomNav
+            activeSection={getMobileNavSection()}
+            onShowChatList={showMobileChatList}
+            onShowFriends={showFriendsPage}
+            onShowFortune={showFortunePage}
+          />
+        </div>
+      );
+    }
+
     const isConversationView = chatView === "conversation" && Boolean(activeConversation);
     return (
       <div className={isConversationView ? "chat-page" : ""}>
@@ -860,6 +1039,70 @@ export function App() {
     );
   }
 
+  function renderMobilePage() {
+    const currentSession = session;
+    if (!currentSession) {
+      return null;
+    }
+
+    switch (mobilePage.name) {
+      case "chat_list":
+        return (
+          <MobileConversationListPage
+            conversations={filteredConversations}
+            activeConversationId={activeConversationId}
+            chatSearchQuery={chatSearchQuery}
+            onChatSearchQueryChange={setChatSearchQuery}
+            onOpenConversation={openConversation}
+            onShowFriendsPage={showFriendsPage}
+            getAvatarLabel={getAvatarLabel}
+            getConversationTitle={getConversationTitle}
+            getConversationPreview={getMaskedConversationPreview}
+            formatMessageTime={formatMessageTime}
+          />
+        );
+      case "chat_detail":
+        return (
+          <MobileConversationDetailPage
+            conversation={conversations.find((item) => item.conversationId === mobilePage.conversationId) ?? null}
+            messages={messages[mobilePage.conversationId] ?? []}
+            sessionUserUid={currentSession.user.userUid}
+            composer={composer}
+            uploadingFile={uploadingFile}
+            onComposerChange={setComposer}
+            onSendMessage={() => void handleSendMessage()}
+            onFileSelected={(file) => void handleFileSelected(file)}
+            onBack={showMobileChatList}
+            onLogout={() => void handleLogout()}
+            renderMessageBody={renderMessageBody}
+            getAvatarLabel={getAvatarLabel}
+            getConversationTitle={getConversationTitle}
+            formatConversationDivider={formatConversationDivider}
+          />
+        );
+      case "friends":
+        return (
+          <MobileFriendsPage
+            friendSearchQuery={friendSearchQuery}
+            remarkName={contactForm.remarkName}
+            searchingUsers={searchingUsers}
+            userSearchResults={userSearchResults}
+            recentContacts={recentContacts}
+            onFriendSearchQueryChange={setFriendSearchQuery}
+            onRemarkNameChange={(value) => setContactForm((prev) => ({ ...prev, remarkName: value }))}
+            onFriendSearch={() => void handleFriendSearch()}
+            onAddContact={(peerUid) => void handleAddContact(peerUid)}
+            getAvatarLabel={getAvatarLabel}
+            formatRecentAdded={formatRecentAdded}
+          />
+        );
+      case "fortune":
+        return <MobileFortunePage onLuckyNumberVerified={handleMobileFortuneVerified} />;
+      default:
+        return null;
+    }
+  }
+
   function renderSidebar(inConversationLayout: boolean) {
     return (
       <aside className="sidebar">
@@ -867,7 +1110,7 @@ export function App() {
           <div className="wechat-header">
             <div className="topbar topbar-tight">
               <div className="title title-chat">聊天</div>
-              <button className="tag tag-button" type="button" onClick={() => setChatView("add-friend")}>
+              <button className="tag tag-button" type="button" onClick={showFriendsPage}>
                 {inConversationLayout ? "添加好友" : "搜索 / 添加好友"}
               </button>
             </div>
@@ -893,13 +1136,13 @@ export function App() {
             {filteredConversations.map((conversation) => (
               <li
                 key={conversation.conversationId}
-                className={conversation.conversationId === activeConversation?.conversationId ? "chat-item active" : "chat-item"}
+                className={conversation.conversationId === activeConversationId ? "chat-item active" : "chat-item"}
               >
                 <button className="chat-item-button" type="button" onClick={() => openConversation(conversation.conversationId)}>
-                  <div className="avatar">{getAvatarLabel(conversation.remarkName || conversation.peerNickname || conversation.peerUid)}</div>
+                  <div className="avatar">{getAvatarLabel(getConversationTitle(conversation))}</div>
                   <div className="chat-main">
                     <div className="chat-row">
-                      <div className="name">{conversation.remarkName || conversation.peerNickname || conversation.peerUid}</div>
+                      <div className="name">{getConversationTitle(conversation)}</div>
                       <div className="time">{formatMessageTime(conversation.lastMessageAt)}</div>
                     </div>
                     <div className="preview">{getMaskedConversationPreview(conversation)}</div>
@@ -910,27 +1153,6 @@ export function App() {
             ))}
           </ul>
         </div>
-
-        <nav className="mobile-nav">
-          <button type="button" className={chatView === "list" ? "is-active" : ""} onClick={() => setChatView("list")}>
-            💬
-            <span>聊天</span>
-          </button>
-          <button type="button" className={chatView === "add-friend" ? "is-active" : ""} onClick={() => setChatView("add-friend")}>
-            👤
-            <span>好友</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setScreen("disguise");
-              setPublicView("fortune");
-            }}
-          >
-            ✨
-            <span>运势</span>
-          </button>
-        </nav>
       </aside>
     );
   }
@@ -940,7 +1162,7 @@ export function App() {
       <main className="main-panel">
         <div className="panel-header">
           <div>
-            <div className="name header-name">{activeConversation?.remarkName || activeConversation?.peerNickname || "最近会话"}</div>
+            <div className="name header-name">{activeConversation ? getConversationTitle(activeConversation) : "最近会话"}</div>
             <div className="muted">
               {activeConversation ? `${selectedContact?.peerNickname ?? "联系人"} 在线状态受保护 · ${(activeConversation.unreadCount ?? 0)} 条未读` : "选择左侧会话进入聊天"}
             </div>
@@ -972,22 +1194,18 @@ export function App() {
   }
 
   function renderConversationPage() {
-    const currentSession = session;
-    if (!currentSession) {
+    if (!session) {
       return null;
     }
     return (
       <main className="conv-area">
         <div className="panel-header">
           <div>
-            <div className="name header-name">{activeConversation?.remarkName || activeConversation?.peerNickname || "选择一个会话"}</div>
+            <div className="name header-name">{activeConversation ? getConversationTitle(activeConversation) : "选择一个会话"}</div>
             <div className="muted">工作日 09:00 - 22:00 活跃 · 本地缓存已启用</div>
           </div>
           <div className="panel-header-actions">
             <span className="tag">支持发送文件</span>
-            <button className="btn ghost" type="button" onClick={() => setChatView("list")}>
-              返回列表
-            </button>
             <button className="btn ghost" type="button" onClick={handleReturnToDisguise}>
               返回伪装页
             </button>
@@ -998,14 +1216,14 @@ export function App() {
         </div>
 
         <div className="messages">
-          {visibleMessages.length > 0 && <div className="day-divider">{formatConversationDivider(visibleMessages[0].serverMsgTime)}</div>}
-          {visibleMessages.map((message) => renderMessageRow(message))}
+          {visibleDesktopMessages.length > 0 && <div className="day-divider">{formatConversationDivider(visibleDesktopMessages[0].serverMsgTime)}</div>}
+          {visibleDesktopMessages.map((message) => renderMessageRow(message))}
           {activeConversation && currentMessages.length === 0 && (
             <div className="msg other">
               <div className="bubble">暂无消息</div>
             </div>
           )}
-          {activeConversation && currentMessages.length > 0 && visibleMessages.length === 0 && (
+          {activeConversation && currentMessages.length > 0 && visibleDesktopMessages.length === 0 && (
             <div className="msg other">
               <div className="bubble">没有匹配的聊天记录</div>
             </div>
@@ -1156,12 +1374,11 @@ export function App() {
   }
 
   function renderMessageRow(message: ChatMessage) {
-    const currentSession = session;
-    if (!currentSession) {
+    if (!session) {
       return null;
     }
-    const isSelf = message.senderUid === currentSession.user.userUid;
-    const avatarName = activeConversation?.remarkName || activeConversation?.peerNickname || "对方";
+    const isSelf = message.senderUid === session.user.userUid;
+    const avatarName = activeConversation ? getConversationTitle(activeConversation) : "对方";
     return (
       <div key={message.messageId} className={isSelf ? "msg self" : "msg other"}>
         {!isSelf && <div className="avatar small">{getAvatarLabel(avatarName)}</div>}

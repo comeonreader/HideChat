@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getTodayFortune, getDisguiseConfig, verifyLuckyNumber } from "../../api/client";
+import { ApiError, getTodayFortune, getDisguiseConfig, verifyLuckyNumber } from "../../api/client";
 import type { FortuneToday, DisguiseConfig } from "../../types";
 import "./DisguiseEntryPage.css";
 
@@ -7,6 +7,13 @@ interface DisguiseEntryPageProps {
   onLuckyNumberVerified: () => void;
   onSwitchToFortune: () => void;
   initialView?: "lucky" | "fortune";
+}
+
+function normalizeLuckyNumberInput(value: string): string {
+  return value
+    .replace(/[０-９]/g, (digit) => String.fromCharCode(digit.charCodeAt(0) - 0xfee0))
+    .replace(/[\u200B-\u200D\u2060\uFEFF\u00A0\u202F]/g, "")
+    .trim();
 }
 
 export function DisguiseEntryPage({
@@ -48,7 +55,9 @@ export function DisguiseEntryPage({
 
   // 处理幸运数字验证
   const handleVerifyLuckyNumber = async () => {
-    if (!luckyCodeInput.trim()) {
+    const normalizedLuckyNumber = normalizeLuckyNumberInput(luckyCodeInput);
+
+    if (!normalizedLuckyNumber) {
       setError("请输入幸运数字");
       return;
     }
@@ -56,11 +65,11 @@ export function DisguiseEntryPage({
     try {
       setIsLoading(true);
       setError(null);
-      
-      const result = await verifyLuckyNumber(luckyCodeInput.trim());
+
+      const result = await verifyLuckyNumber(normalizedLuckyNumber);
       
       if (result.matched) {
-        setLastLuckyNumber(luckyCodeInput.trim());
+        setLastLuckyNumber(normalizedLuckyNumber);
         setStatusText("幸运数字已匹配，正在打开今日彩蛋...");
         
         // 清空输入
@@ -74,15 +83,22 @@ export function DisguiseEntryPage({
         setError("这个幸运数字暂未触发彩蛋，请再试一次");
         setStatusText("未匹配到今日彩蛋，请检查后重试。");
       }
-    } catch (err: any) {
-      const errorMessage = err.code === 420201 
+    } catch (err) {
+      const apiError = err instanceof ApiError ? err : null;
+      const isLuckyNumberMismatch = apiError?.code === 420201;
+      const isSystemSideFailure = !isLuckyNumberMismatch;
+      const errorMessage = apiError?.code === 420201
         ? "这个幸运数字暂未触发彩蛋，请再试一次"
-        : err.code === 420202
-        ? "今日彩蛋暂时不可用，请稍后再试"
-        : "校验失败，请稍后重试";
-      
+        : apiError?.code === 420202
+          ? "今日彩蛋暂时不可用，请稍后再试"
+          : "校验失败，请稍后重试";
+
       setError(errorMessage);
-      setStatusText("未匹配到今日彩蛋，请检查后重试。");
+      setStatusText(
+        isSystemSideFailure
+          ? "校验服务暂时不可用，请稍后重试。"
+          : "未匹配到今日彩蛋，请检查后重试。"
+      );
       console.error("Failed to verify lucky number:", err);
     } finally {
       setIsLoading(false);
@@ -175,7 +191,7 @@ export function DisguiseEntryPage({
             <button
               className="verify-button"
               onClick={handleVerifyLuckyNumber}
-              disabled={isLoading || !luckyCodeInput.trim()}
+              disabled={isLoading || !normalizeLuckyNumberInput(luckyCodeInput)}
             >
               {isLoading ? "校验中..." : "查看彩蛋"}
             </button>

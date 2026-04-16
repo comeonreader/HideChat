@@ -118,4 +118,45 @@ describe("DisguiseEntryPage", () => {
     expect(await screen.findByText("这个幸运数字暂未触发彩蛋，请再试一次")).toBeInTheDocument();
     expect(document.body.textContent ?? "").not.toMatch(/聊天|隐藏|管理员|加密/);
   });
+
+  it("normalizes full-width digits and invisible whitespace before verification", async () => {
+    const user = userEvent.setup();
+    apiMocks.verifyLuckyNumber.mockResolvedValue({ matched: true });
+
+    render(
+      <DisguiseEntryPage
+        onLuckyNumberVerified={vi.fn()}
+        onSwitchToFortune={vi.fn()}
+      />
+    );
+
+    await screen.findByRole("button", { name: "查看彩蛋" });
+    await user.type(screen.getByLabelText("请输入今日幸运数字"), "　２４\u200B６８ ");
+    await user.click(screen.getByRole("button", { name: "查看彩蛋" }));
+
+    await waitFor(() => {
+      expect(apiMocks.verifyLuckyNumber).toHaveBeenCalledWith("2468");
+    });
+  });
+
+  it("shows system error only for network failures", async () => {
+    const user = userEvent.setup();
+    apiMocks.verifyLuckyNumber.mockRejectedValue(
+      new ApiError("network down", { status: 503, isNetworkError: true })
+    );
+
+    render(
+      <DisguiseEntryPage
+        onLuckyNumberVerified={vi.fn()}
+        onSwitchToFortune={vi.fn()}
+      />
+    );
+
+    await screen.findByRole("button", { name: "查看彩蛋" });
+    await user.type(screen.getByLabelText("请输入今日幸运数字"), "2468");
+    await user.click(screen.getByRole("button", { name: "查看彩蛋" }));
+
+    expect(await screen.findByText("校验失败，请稍后重试")).toBeInTheDocument();
+    expect(screen.getByText("校验服务暂时不可用，请稍后重试。")).toBeInTheDocument();
+  });
 });
