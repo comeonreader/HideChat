@@ -15,14 +15,14 @@ describe("store", () => {
   });
 
   it("marks chat cache as hydrated", () => {
-    expect(markChatCacheHydrated(createChatCacheState(), 1_000)).toEqual({
+    expect(markChatCacheHydrated(1_000)).toEqual({
       hydrated: true,
       lastHydratedAt: 1_000
     });
   });
 
   it("resets chat cache state", () => {
-    const hydrated = markChatCacheHydrated(createChatCacheState(), 2_000);
+    const hydrated = markChatCacheHydrated(2_000);
     expect(resetChatCacheState()).toEqual({
       hydrated: false,
       lastHydratedAt: null
@@ -35,12 +35,12 @@ describe("store", () => {
   });
 
   it("does not refresh hydrated cache within max age", () => {
-    const state = markChatCacheHydrated(createChatCacheState(), 10_000);
+    const state = markChatCacheHydrated(10_000);
     expect(shouldRefreshChatCache(state, 30_000, 20_000)).toBe(false);
   });
 
   it("refreshes hydrated cache after max age", () => {
-    const state = markChatCacheHydrated(createChatCacheState(), 10_000);
+    const state = markChatCacheHydrated(10_000);
     expect(shouldRefreshChatCache(state, 30_000, 50_100)).toBe(true);
   });
 });

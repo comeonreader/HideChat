@@ -479,16 +479,6 @@ function createFetchMock() {
   });
 }
 
-async function loginToChat(user: ReturnType<typeof userEvent.setup>) {
-  await screen.findByRole("button", { name: "查看彩蛋" });
-  await user.type(screen.getByLabelText("请输入今日幸运数字"), "2468");
-  await user.click(screen.getByRole("button", { name: "查看彩蛋" }));
-  await screen.findByText("隐藏入口验证");
-  await user.click(screen.getByRole("button", { name: "使用当前信息进入" }));
-  await screen.findByText("认证成功，已进入聊天。");
-  await screen.findByRole("button", { name: "进入聊天" });
-}
-
 async function loginToMobileChatList(user: ReturnType<typeof userEvent.setup>) {
   await screen.findByRole("button", { name: "查看彩蛋" });
   await user.type(screen.getByLabelText("请输入今日幸运数字"), "2468");

@@ -7,7 +7,7 @@ interface MobileFortunePageProps {
 export function MobileFortunePage({ onLuckyNumberVerified }: MobileFortunePageProps) {
   return (
     <div className="mobile-fortune-page">
-      <DisguiseEntryPage onLuckyNumberVerified={onLuckyNumberVerified} onSwitchToFortune={() => undefined} initialView="fortune" />
+      <DisguiseEntryPage onLuckyNumberVerified={onLuckyNumberVerified} initialView="fortune" />
     </div>
   );
 }

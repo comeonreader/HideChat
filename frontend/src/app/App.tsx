@@ -96,7 +96,7 @@ export function App() {
   const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({});
   const [activeConversationId, setActiveConversationId] = useState("");
   const [composer, setComposer] = useState("");
-  const [statusText, setStatusText] = useState("运势页已加载，输入幸运数字查看今日彩蛋。");
+  const [statusText, setStatusText] = useState("输入幸运数字后可继续。");
   const [authLoading, setAuthLoading] = useState(false);
   const [sendCodeLoading, setSendCodeLoading] = useState(false);
   const [searchingUsers, setSearchingUsers] = useState(false);
@@ -867,10 +867,9 @@ export function App() {
       {screen === "disguise" && renderPublicView()}
       {screen === "auth" && renderAuthView()}
       {screen === "chat" && session && renderChatShell()}
-      <section className="status-strip">
-        <strong>状态</strong>
-        <span>{statusText}</span>
-      </section>
+      <div className="status-strip" role="status" aria-live="polite">
+        {statusText}
+      </div>
     </main>
   );
 
@@ -888,12 +887,10 @@ export function App() {
               setActiveConversationId(nextConversationId);
               setChatView(getDefaultChatView(Boolean(nextConversationId)));
             }
-            setStatusText("幸运数字校验通过，已进入聊天。");
           } else {
             setScreen("auth");
           }
         }}
-        onSwitchToFortune={() => setPublicView("fortune")}
         initialView={publicView}
       />
     );

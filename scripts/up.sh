@@ -2,12 +2,11 @@
 
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="${ROOT_DIR}/.env"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compose-common.sh"
 
-if [[ ! -f "${ENV_FILE}" ]]; then
-  ENV_FILE="${ROOT_DIR}/.env.example"
-fi
+MODE="$(resolve_gateway_mode "${1:-}")"
+mapfile -t COMPOSE_ARGS < <(compose_file_args "${MODE}")
 
 echo "Using env file: ${ENV_FILE}"
-docker compose --env-file "${ENV_FILE}" -f "${ROOT_DIR}/docker-compose.yml" up -d --build
+echo "Gateway mode: ${MODE}"
+docker compose "${COMPOSE_ARGS[@]}" up -d --build

@@ -72,13 +72,16 @@ interface FileUploadSignResponse {
   headers?: Record<string, string>;
 }
 
+// 刷新访问令牌的 Promise，用于避免同时发起多个刷新请求
 let refreshPromise: Promise<AuthTokens> | null = null;
 
+// 定义一个通用的 API 错误类，包含错误码、HTTP 状态码和是否为网络错误等信息，方便在调用 API 时进行统一的错误处理
 export class ApiError extends Error {
   readonly code?: number;
   readonly status?: number;
   readonly isNetworkError: boolean;
 
+  // 构造函数
   constructor(message: string, options?: { code?: number; status?: number; isNetworkError?: boolean }) {
     super(message);
     this.name = "ApiError";
@@ -289,7 +292,7 @@ export function fetchTodayFortune(): Promise<FortuneToday> {
 
 export function fetchDisguiseConfig(): Promise<DisguiseConfig> {
   return readJsonWithFallback("/system/disguise-config", {
-    siteTitle: "今日运势",
+    siteTitle: "命运入口",
     showFortuneInput: true,
     theme: "default"
   });

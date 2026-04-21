@@ -2,18 +2,16 @@
 
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="${ROOT_DIR}/.env"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compose-common.sh"
 
-if [[ ! -f "${ENV_FILE}" ]]; then
-  ENV_FILE="${ROOT_DIR}/.env.example"
-fi
+MODE="$(resolve_gateway_mode "${1:-}")"
+mapfile -t COMPOSE_ARGS < <(compose_file_args "${MODE}")
 
 set -a
 source "${ENV_FILE}"
 set +a
 
-COMPOSE_ARGS=(--env-file "${ENV_FILE}" -f "${ROOT_DIR}/docker-compose.yml")
+echo "Gateway mode: ${MODE}"
 
 wait_for_http() {
   local url="$1"
@@ -42,7 +40,11 @@ cat /tmp/hidechat-backend-check.json
 
 echo
 echo "== frontend =="
-wait_for_http "http://127.0.0.1:${FRONTEND_PORT}/" /tmp/hidechat-frontend-check.html
+if [[ "${MODE}" == "host" ]]; then
+  wait_for_http "http://127.0.0.1:${FRONTEND_PORT}/" /tmp/hidechat-frontend-check.html
+else
+  docker compose "${COMPOSE_ARGS[@]}" exec -T frontend sh -lc 'wget -qO- http://127.0.0.1/' >/tmp/hidechat-frontend-check.html
+fi
 grep -q "HideChat" /tmp/hidechat-frontend-check.html
 echo "frontend ok"
 

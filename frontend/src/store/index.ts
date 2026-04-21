@@ -10,7 +10,7 @@ export function createChatCacheState(): ChatCacheState {
   };
 }
 
-export function markChatCacheHydrated(state: ChatCacheState, now = Date.now()): ChatCacheState {
+export function markChatCacheHydrated(now = Date.now()): ChatCacheState {
   return {
     hydrated: true,
     lastHydratedAt: now

@@ -1,0 +1,10 @@
+services:
+  nginx:
+    environment:
+      NGINX_LISTEN_PORT: 80
+      NGINX_BACKEND_HOST: backend
+      NGINX_BACKEND_PORT: 8080
+      NGINX_FRONTEND_HOST: frontend
+      NGINX_FRONTEND_PORT: 80
+    ports:
+      - "${GATEWAY_PORT:-80}:80"

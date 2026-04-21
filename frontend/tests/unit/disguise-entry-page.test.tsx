@@ -46,7 +46,6 @@ describe("DisguiseEntryPage", () => {
     render(
       <DisguiseEntryPage
         onLuckyNumberVerified={vi.fn()}
-        onSwitchToFortune={vi.fn()}
       />
     );
 
@@ -63,7 +62,6 @@ describe("DisguiseEntryPage", () => {
     render(
       <DisguiseEntryPage
         onLuckyNumberVerified={vi.fn()}
-        onSwitchToFortune={vi.fn()}
       />
     );
 
@@ -86,7 +84,6 @@ describe("DisguiseEntryPage", () => {
     render(
       <DisguiseEntryPage
         onLuckyNumberVerified={onLuckyNumberVerified}
-        onSwitchToFortune={vi.fn()}
       />
     );
 
@@ -107,7 +104,6 @@ describe("DisguiseEntryPage", () => {
     render(
       <DisguiseEntryPage
         onLuckyNumberVerified={vi.fn()}
-        onSwitchToFortune={vi.fn()}
       />
     );
 
@@ -126,7 +122,6 @@ describe("DisguiseEntryPage", () => {
     render(
       <DisguiseEntryPage
         onLuckyNumberVerified={vi.fn()}
-        onSwitchToFortune={vi.fn()}
       />
     );
 
@@ -148,7 +143,6 @@ describe("DisguiseEntryPage", () => {
     render(
       <DisguiseEntryPage
         onLuckyNumberVerified={vi.fn()}
-        onSwitchToFortune={vi.fn()}
       />
     );
 

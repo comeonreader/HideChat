@@ -1,25 +1,30 @@
-import { useState, useEffect } from "react";
-import { ApiError, getTodayFortune, getDisguiseConfig, verifyLuckyNumber } from "../../api/client";
-import type { FortuneToday, DisguiseConfig } from "../../types";
+import { useEffect, useState } from "react";
+import {
+  ApiError,
+  getDisguiseConfig,
+  getTodayFortune,
+  verifyLuckyNumber,
+} from "../../api/client";
+import type { DisguiseConfig, FortuneToday } from "../../types";
 import "./DisguiseEntryPage.css";
 
 interface DisguiseEntryPageProps {
   onLuckyNumberVerified: () => void;
-  onSwitchToFortune: () => void;
   initialView?: "lucky" | "fortune";
 }
 
 function normalizeLuckyNumberInput(value: string): string {
   return value
-    .replace(/[０-９]/g, (digit) => String.fromCharCode(digit.charCodeAt(0) - 0xfee0))
+    .replace(/[０-９]/g, (digit) =>
+      String.fromCharCode(digit.charCodeAt(0) - 0xfee0),
+    )
     .replace(/[\u200B-\u200D\u2060\uFEFF\u00A0\u202F]/g, "")
     .trim();
 }
 
 export function DisguiseEntryPage({
   onLuckyNumberVerified,
-  onSwitchToFortune,
-  initialView = "lucky"
+  initialView = "lucky",
 }: DisguiseEntryPageProps) {
   const [view, setView] = useState<"lucky" | "fortune">(initialView);
   const [fortune, setFortune] = useState<FortuneToday | null>(null);
@@ -28,7 +33,7 @@ export function DisguiseEntryPage({
   const [lastLuckyNumber, setLastLuckyNumber] = useState("--");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [statusText, setStatusText] = useState("运势页已加载，输入幸运数字查看今日彩蛋。");
+  const [statusNote, setStatusNote] = useState<string | null>(null);
 
   // 加载运势和配置
   useEffect(() => {
@@ -37,7 +42,7 @@ export function DisguiseEntryPage({
         setIsLoading(true);
         const [fortuneData, disguiseData] = await Promise.all([
           getTodayFortune(),
-          getDisguiseConfig()
+          getDisguiseConfig(),
         ]);
         setFortune(fortuneData);
         setConfig(disguiseData);
@@ -59,56 +64,49 @@ export function DisguiseEntryPage({
 
     if (!normalizedLuckyNumber) {
       setError("请输入幸运数字");
+      setStatusNote("请输入今日幸运数字后继续。");
       return;
     }
 
     try {
       setIsLoading(true);
       setError(null);
+      setStatusNote(null);
 
       const result = await verifyLuckyNumber(normalizedLuckyNumber);
-      
+
       if (result.matched) {
         setLastLuckyNumber(normalizedLuckyNumber);
-        setStatusText("幸运数字已匹配，正在打开今日彩蛋...");
-        
+        setStatusNote("幸运数字已匹配，正在打开今日彩蛋...");
+
         // 清空输入
         setLuckyCodeInput("");
-        
+
         // 延迟一小段时间后触发验证成功回调
         setTimeout(() => {
           onLuckyNumberVerified();
         }, 500);
       } else {
         setError("这个幸运数字暂未触发彩蛋，请再试一次");
-        setStatusText("未匹配到今日彩蛋，请检查后重试。");
+        setStatusNote("未匹配到今日彩蛋，请检查后重试。");
       }
     } catch (err) {
       const apiError = err instanceof ApiError ? err : null;
-      const isLuckyNumberMismatch = apiError?.code === 420201;
-      const isSystemSideFailure = !isLuckyNumberMismatch;
-      const errorMessage = apiError?.code === 420201
-        ? "这个幸运数字暂未触发彩蛋，请再试一次"
-        : apiError?.code === 420202
-          ? "今日彩蛋暂时不可用，请稍后再试"
-          : "校验失败，请稍后重试";
+      const errorMessage =
+        apiError?.code === 420201
+          ? "这个幸运数字暂未触发彩蛋，请再试一次"
+          : apiError?.code === 420202
+            ? "今日彩蛋暂时不可用，请稍后再试"
+            : "校验失败，请稍后重试";
 
       setError(errorMessage);
-      setStatusText(
-        isSystemSideFailure
-          ? "校验服务暂时不可用，请稍后重试。"
-          : "未匹配到今日彩蛋，请检查后重试。"
+      setStatusNote(
+        apiError?.code === 420201 ? "未匹配到今日彩蛋，请检查后重试。" : "校验服务暂时不可用，请稍后重试。"
       );
       console.error("Failed to verify lucky number:", err);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // 切换到运势视图
-  const handleSwitchToFortune = () => {
-    setView("fortune");
-    onSwitchToFortune();
   };
 
   // 切换到幸运数字视图
@@ -130,7 +128,7 @@ export function DisguiseEntryPage({
       <div className="disguise-container error">
         <div className="error-icon">⚠️</div>
         <p>{error}</p>
-        <button 
+        <button
           className="retry-button"
           onClick={() => window.location.reload()}
         >
@@ -143,7 +141,7 @@ export function DisguiseEntryPage({
   return (
     <div className="disguise-container">
       <header className="disguise-header">
-        <h1>{config?.siteTitle || "今日运势"}</h1>
+        <h1>{config?.siteTitle || "命运入口"}</h1>
         <div className="view-switcher">
           <button
             className={`view-button ${view === "lucky" ? "active" : ""}`}
@@ -151,13 +149,6 @@ export function DisguiseEntryPage({
             disabled={view === "lucky"}
           >
             幸运数字
-          </button>
-          <button
-            className={`view-button ${view === "fortune" ? "active" : ""}`}
-            onClick={handleSwitchToFortune}
-            disabled={view === "fortune"}
-          >
-            今日运势
           </button>
         </div>
       </header>
@@ -169,7 +160,7 @@ export function DisguiseEntryPage({
               <span className="label">上次验证数字：</span>
               <span className="value">{lastLuckyNumber}</span>
             </div>
-            
+
             <div className="input-section">
               <label htmlFor="luckyCode">请输入今日幸运数字</label>
               <input
@@ -196,6 +187,8 @@ export function DisguiseEntryPage({
               {isLoading ? "校验中..." : "查看彩蛋"}
             </button>
 
+            {statusNote && <div className="hint">{statusNote}</div>}
+
             <div className="hint">
               <p>提示：输入正确的幸运数字可开启今日彩蛋</p>
               <p>忘记幸运数字？可以先看看今日建议再试试</p>
@@ -210,7 +203,7 @@ export function DisguiseEntryPage({
                   <div className="fortune-summary">
                     <p>{fortune.summary}</p>
                   </div>
-                  
+
                   <div className="fortune-details">
                     <div className="detail-item">
                       <span className="detail-label">幸运颜色：</span>
@@ -218,7 +211,9 @@ export function DisguiseEntryPage({
                     </div>
                     <div className="detail-item">
                       <span className="detail-label">幸运方向：</span>
-                      <span className="detail-value">{fortune.luckyDirection}</span>
+                      <span className="detail-value">
+                        {fortune.luckyDirection}
+                      </span>
                     </div>
                     <div className="detail-item">
                       <span className="detail-label">今日建议：</span>
@@ -228,10 +223,7 @@ export function DisguiseEntryPage({
                 </div>
 
                 <div className="fortune-actions">
-                  <button
-                    className="back-button"
-                    onClick={handleSwitchToLucky}
-                  >
+                  <button className="back-button" onClick={handleSwitchToLucky}>
                     返回幸运数字
                   </button>
                   <div className="fortune-note">
@@ -243,13 +235,6 @@ export function DisguiseEntryPage({
           </div>
         )}
       </main>
-
-      <footer className="disguise-footer">
-        <p className="status-text">{statusText}</p>
-        <div className="security-notice">
-          <small>今日内容仅供参考，祝你收获一份好心情</small>
-        </div>
-      </footer>
     </div>
   );
 }

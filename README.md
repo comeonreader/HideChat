@@ -246,7 +246,7 @@ GRANT ALL PRIVILEGES ON DATABASE hidechat_dev TO hidechat_dev;
 
 ```bash
 # 使用 docker-compose 启动所有服务（包括 MailPit）
-docker-compose up -d
+./scripts/up.sh bridge
 
 # 或者单独启动 MailPit
 docker run -d \
@@ -427,14 +427,52 @@ npm run build
 
 ## 9. Docker 部署指南
 
-仓库当前提供了前后端各自的 Dockerfile，但没有现成的 `docker-compose.yml`。推荐部署形态是：
+仓库当前提供了前后端 Dockerfile、基础 `docker-compose.yml`，以及两套可切换的网关网络方案。推荐部署形态是：
 
 - `frontend`：Nginx 提供静态资源
 - `backend`：Spring Boot 服务
 - `postgres`：独立数据库
 - `redis`：独立缓存
 
-### 9.1 构建镜像
+两套网关方案说明见 [docs/tech-design/docker-nginx-network-fix.md](/home/reader/HideChat/docs/tech-design/docker-nginx-network-fix.md)。
+
+### 9.1 使用 Compose 启动
+
+默认推荐 `bridge` 方案：
+
+```bash
+./scripts/up.sh bridge
+```
+
+如果部署环境明确要求 `nginx` 使用 host 网络：
+
+```bash
+./scripts/up.sh host
+```
+
+停止：
+
+```bash
+./scripts/down.sh bridge
+# 或
+./scripts/down.sh host
+```
+
+检查：
+
+```bash
+./scripts/check.sh bridge
+# 或
+./scripts/check.sh host
+```
+
+配置校验：
+
+```bash
+./scripts/verify-gateway-config.sh
+```
+
+### 9.2 构建镜像
 
 后端：
 
@@ -448,13 +486,13 @@ docker build -t hidechat-backend:local ./backend
 docker build -t hidechat-frontend:local ./frontend
 ```
 
-### 9.2 创建网络
+### 9.3 创建网络
 
 ```bash
 docker network create hidechat-net
 ```
 
-### 9.3 启动 PostgreSQL 和 Redis
+### 9.4 启动 PostgreSQL 和 Redis
 
 ```bash
 docker run -d \
@@ -473,7 +511,7 @@ docker run -d \
   redis:7-alpine
 ```
 
-### 9.4 启动后端容器
+### 9.5 启动后端容器
 
 ```bash
 docker run -d \
@@ -500,7 +538,7 @@ docker run -d \
 - 文件默认落盘到容器内 `/data/uploads`
 - 本地卷挂载建议保留，否则容器重建后文件会丢失
 
-### 9.5 启动前端容器
+### 9.6 启动前端容器
 
 如果前端和后端不在同一域名下，需要在构建前指定 API / WS 地址：
 
@@ -521,7 +559,7 @@ docker run -d \
   hidechat-frontend:local
 ```
 
-### 9.6 推荐的生产代理方式
+### 9.7 推荐的生产代理方式
 
 更稳妥的生产方案是把前端和后端收敛到同一域名：
 
@@ -539,7 +577,7 @@ docker run -d \
 
 基于设计文档和当前实现，下面这些点仍应视为后续增强项，而不是已经完全收口的生产能力：
 
-- 还没有提供官方 `docker-compose.yml` 或 Kubernetes 清单
+- 还没有提供 Kubernetes 清单
 - 文件存储仍是本地文件系统，不是对象存储预签名上传
 - 限流是单实例内存窗口，多实例部署需要升级
 - 没有实现更严格的 PIN 错误次数限制和自动锁定策略

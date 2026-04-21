@@ -20,18 +20,26 @@
   - 文件上传签名 / 上传完成
 - 已接入 WebSocket 聊天通道
 - 已实现本地 PIN、自动锁定、本地加密消息缓存和解锁恢复
+- 已清理未接入主流程的前端占位实现，当前保留的代码均服务于实际页面、存储或测试链路
 
 ## 当前测试形态
 
-截至 2026-04-10，当前工作区实际执行结果如下：
+截至 2026-04-21，当前工作区实际执行结果如下：
 
 - `npm test`
-  - `7` 个测试文件通过
-  - `35` 个测试用例通过
+  - `8` 个测试文件通过
+  - `33` 个测试用例通过
 - `npm run build`
   - 通过
-- `npm run test:e2e`
-  - `3` 个 Playwright 用例通过
+
+## 本次清理
+
+- 删除未被引用的 `src/services/AutoLockService.ts`
+- 删除未被引用的 `src/services/MessageEncryptionService.ts`
+- 删除未被引用的 `src/hooks/index.ts`
+- 删除无实际测试价值的 `tests/unit/placeholder.test.md`
+- 移除 `DisguiseEntryPage` 中未生效的 fortune 切换回调参数，保留真实在用的 `initialView` 入口
+- 修复 `App.tsx` 缺失状态条状态导致的构建失败，恢复主链路可编译
 
 ## 限制与说明
 
@@ -48,6 +56,7 @@
 - `src/store/` 本地状态与锁定状态编排
 - `src/crypto/` 加密与校验逻辑
 - `src/storage/` 本地存储封装
+- `src/components/` 可复用 UI 组件
 - `tests/unit/` 单元测试
 - `tests/e2e/` 基于 `vitest` + `jsdom` 的伪 E2E
 - `tests/browser/` 基于 Playwright 的真实浏览器测试

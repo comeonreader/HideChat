@@ -1,11 +1,11 @@
 server {
-    listen 80;
+    listen ${NGINX_LISTEN_PORT};
     server_name _;
 
     client_max_body_size 20m;
 
     location /api/ {
-        proxy_pass http://backend:8080;
+        proxy_pass http://${NGINX_BACKEND_HOST}:${NGINX_BACKEND_PORT};
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -14,7 +14,7 @@ server {
     }
 
     location /ws/ {
-        proxy_pass http://backend:8080;
+        proxy_pass http://${NGINX_BACKEND_HOST}:${NGINX_BACKEND_PORT};
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -25,7 +25,7 @@ server {
     }
 
     location / {
-        proxy_pass http://frontend:80;
+        proxy_pass http://${NGINX_FRONTEND_HOST}:${NGINX_FRONTEND_PORT};
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header Upgrade $http_upgrade;
