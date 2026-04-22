@@ -62,13 +62,13 @@ export function MobileConversationDetailPage({
   const title = getConversationTitle(conversation);
 
   return (
-    <main className="conv-area conv-area--mobile">
-      <div className="panel-header panel-header--mobile-detail">
+    <main className="conv-area conv-area--mobile mobile-conversation-layout">
+      <header className="panel-header panel-header--mobile-detail">
         <div className="mobile-detail-header-main">
           <button className="btn ghost mobile-back-button" type="button" onClick={onBack}>
             返回列表
           </button>
-          <div>
+          <div className="mobile-detail-title">
             <div className="name header-name">{title}</div>
             <div className="muted">本地缓存已启用</div>
           </div>
@@ -76,9 +76,9 @@ export function MobileConversationDetailPage({
         <button className="btn ghost" type="button" onClick={onLogout}>
           退出账号
         </button>
-      </div>
+      </header>
 
-      <div className="messages messages--mobile">
+      <section className="messages messages--mobile" aria-label="消息列表">
         {messages.length > 0 && <div className="day-divider">{formatConversationDivider(messages[0].serverMsgTime)}</div>}
         {messages.map((message) => {
           const isSelf = message.senderUid === sessionUserUid;
@@ -94,9 +94,9 @@ export function MobileConversationDetailPage({
             <div className="bubble">暂无消息</div>
           </div>
         )}
-      </div>
+      </section>
 
-      <div className="input-bar input-bar--mobile">
+      <footer className="input-bar input-bar--mobile">
         <div className="toolbar">
           <button className="icon-btn" type="button" title="表情">
             😊
@@ -140,7 +140,7 @@ export function MobileConversationDetailPage({
             发送
           </button>
         </div>
-      </div>
+      </footer>
     </main>
   );
 }

@@ -129,6 +129,18 @@ export function App() {
     conversationsRef.current = conversations;
   }, [conversations]);
 
+  useEffect(() => {
+    if (!statusText) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setStatusText("");
+    }, 2800);
+
+    return () => window.clearTimeout(timer);
+  }, [statusText, setStatusText]);
+
   async function handleAuthSubmit() {
     setAuthLoading(true);
     try {
@@ -628,9 +640,15 @@ export function App() {
       {screen === "disguise" && renderPublicView()}
       {screen === "auth" && renderAuthView()}
       {screen === "chat" && session && renderChatShell()}
-      <div className="status-strip" role="status" aria-live="polite">
-        {statusText}
-      </div>
+      {statusText ? (
+        <div
+          className={screen === "chat" ? "status-strip status-strip--visible" : "status-strip status-strip--top"}
+          role="status"
+          aria-live="polite"
+        >
+          {statusText}
+        </div>
+      ) : null}
     </main>
   );
 
@@ -653,6 +671,7 @@ export function App() {
           }
         }}
         initialView={publicView}
+        compactMode={isMobileViewport}
       />
     );
   }

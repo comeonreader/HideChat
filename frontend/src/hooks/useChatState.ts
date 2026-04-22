@@ -50,7 +50,7 @@ export function useChatState({ isMobileViewport, getDefaultChatView, resolvePost
   const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({});
   const [activeConversationId, setActiveConversationId] = useState("");
   const [composer, setComposer] = useState("");
-  const [statusText, setStatusText] = useState("输入幸运数字后可继续。");
+  const [statusText, setStatusText] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [sendCodeLoading, setSendCodeLoading] = useState(false);
   const [searchingUsers, setSearchingUsers] = useState(false);

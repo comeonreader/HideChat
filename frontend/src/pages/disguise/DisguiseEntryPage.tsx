@@ -11,6 +11,7 @@ import "./DisguiseEntryPage.css";
 interface DisguiseEntryPageProps {
   onLuckyNumberVerified: () => void;
   initialView?: "lucky" | "fortune";
+  compactMode?: boolean;
 }
 
 function normalizeLuckyNumberInput(value: string): string {
@@ -27,6 +28,7 @@ function normalizeLuckyNumberInput(value: string): string {
 export function DisguiseEntryPage({
   onLuckyNumberVerified,
   initialView = "lucky",
+  compactMode = false,
 }: DisguiseEntryPageProps) {
   const [view, setView] = useState<"lucky" | "fortune">(initialView);
   const [fortune, setFortune] = useState<FortuneToday | null>(null);
@@ -141,7 +143,7 @@ export function DisguiseEntryPage({
   }
 
   return (
-    <div className="disguise-container">
+    <div className={compactMode ? "disguise-container disguise-container--compact" : "disguise-container"}>
       <div className="disguise-shell">
         <header className="disguise-hero">
           <div className="disguise-eyebrow">今日只有一次命运触发机会</div>

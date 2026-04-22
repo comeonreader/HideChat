@@ -1,5 +1,5 @@
 .disguise-container {
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: 24px;
   color: #f7f8ff;
   background:
@@ -21,6 +21,160 @@
 .disguise-shell {
   width: min(100%, 1120px);
   margin: 0 auto;
+}
+
+.disguise-container--compact {
+  padding: calc(14px + env(safe-area-inset-top)) 14px 20px;
+}
+
+.disguise-container--compact .disguise-shell {
+  width: 100%;
+}
+
+.disguise-container--compact .disguise-hero {
+  margin-bottom: 18px;
+  text-align: left;
+}
+
+.disguise-container--compact .disguise-eyebrow {
+  min-height: 34px;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.disguise-container--compact .disguise-hero h1 {
+  margin: 14px 0 8px;
+  font-size: clamp(32px, 10vw, 46px);
+  line-height: 1.08;
+  letter-spacing: 0.5px;
+}
+
+.disguise-container--compact .disguise-subtitle {
+  width: 100%;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.disguise-container--compact .disguise-panel {
+  padding: 14px;
+  border-radius: 24px;
+}
+
+.disguise-container--compact .disguise-card {
+  padding: 20px;
+  border-radius: 22px;
+}
+
+.disguise-container--compact .unlock-title,
+.disguise-container--compact .teaser-card h2,
+.disguise-container--compact .fortune-card h2 {
+  font-size: clamp(24px, 6vw, 30px);
+}
+
+.disguise-container--compact .unlock-desc {
+  margin-bottom: 18px;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.disguise-container--compact .badge-row {
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.disguise-container--compact .badge {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.disguise-container--compact .input-shell {
+  padding: 12px;
+  margin-bottom: 14px;
+}
+
+.disguise-container--compact .input-label-row {
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.disguise-container--compact .input-shell input {
+  padding: 18px 16px;
+  font-size: 22px;
+  letter-spacing: 4px;
+}
+
+.disguise-container--compact .input-shell input::placeholder {
+  font-size: 18px;
+}
+
+.disguise-container--compact .action-row {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.disguise-container--compact .action-button {
+  padding: 15px 18px;
+  font-size: 16px;
+  border-radius: 16px;
+}
+
+.disguise-container--compact .action-button--primary {
+  flex: none;
+}
+
+.disguise-container--compact .status-card,
+.disguise-container--compact .fortune-summary,
+.disguise-container--compact .detail-item {
+  border-radius: 16px;
+}
+
+.disguise-container--compact .status-card {
+  margin-top: 14px;
+  padding: 14px 16px;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.disguise-container--compact .side-stack {
+  gap: 14px;
+}
+
+.disguise-container--compact .hint-card {
+  margin-top: 16px;
+  padding: 16px;
+}
+
+.disguise-container--compact .mini-card {
+  min-height: 0;
+}
+
+.disguise-container--compact .mini-value,
+.disguise-container--compact .fortune-summary p {
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.disguise-container--compact .fortune-header {
+  margin-bottom: 16px;
+}
+
+.disguise-container--compact .fortune-summary {
+  margin-bottom: 16px;
+  padding: 16px;
+}
+
+.disguise-container--compact .fortune-details {
+  gap: 12px;
+}
+
+.disguise-container--compact .detail-item {
+  padding: 14px 16px;
+}
+
+.disguise-container--compact .fortune-note {
+  margin-top: 16px;
+  font-size: 14px;
+  line-height: 1.7;
 }
 
 .disguise-hero {
@@ -430,5 +584,23 @@
 
   .action-row {
     flex-direction: column;
+  }
+}
+
+@media (max-width: 640px) {
+  .disguise-container--compact {
+    padding-bottom: 18px;
+  }
+
+  .disguise-container--compact .disguise-panel {
+    padding: 12px;
+  }
+
+  .disguise-container--compact .disguise-card {
+    padding: 18px;
+  }
+
+  .disguise-container--compact .input-shell input {
+    letter-spacing: 3px;
   }
 }

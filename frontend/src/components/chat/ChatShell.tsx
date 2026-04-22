@@ -67,15 +67,19 @@ interface ChatShellProps {
 
 export function ChatShell(props: ChatShellProps) {
   if (props.isMobileViewport) {
+    const shouldShowMobileNav = props.mobilePage.name !== "chat_detail";
+
     return (
       <div className="chat-page chat-page--mobile">
         <div className="mobile-chat-shell">{renderMobilePage(props)}</div>
-        <MobileBottomNav
-          activeSection={props.getMobileNavSection()}
-          onShowChatList={props.onShowChatList}
-          onShowFriends={props.onShowFriendsPage}
-          onShowFortune={props.onShowFortunePage}
-        />
+        {shouldShowMobileNav ? (
+          <MobileBottomNav
+            activeSection={props.getMobileNavSection()}
+            onShowChatList={props.onShowChatList}
+            onShowFriends={props.onShowFriendsPage}
+            onShowFortune={props.onShowFortunePage}
+          />
+        ) : null}
       </div>
     );
   }
