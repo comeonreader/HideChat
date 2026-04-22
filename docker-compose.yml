@@ -68,16 +68,16 @@ services:
     volumes:
       - backend_storage:/app/storage/uploads
 
-    frontend:
-      build:
-        context: ./frontend
-        dockerfile: Dockerfile
-      image: hidechat/frontend:local
-      container_name: hidechat-frontend
-      depends_on:
-        - backend
-      expose:
-        - "80"
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: hidechat/frontend:local
+    container_name: hidechat-frontend
+    depends_on:
+      - backend
+    expose:
+      - "80"
 
   nginx:
     image: nginx:1.27-alpine
