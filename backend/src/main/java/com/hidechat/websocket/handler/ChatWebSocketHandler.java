@@ -88,6 +88,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         }
         SendMessageRequest request = objectMapper.treeToValue(wsMessage.getData(), SendMessageRequest.class);
         MessageItemVO sentMessage = messageService.sendMessage(senderUid, request);
+        // 先给发送方 ACK，确保客户端可以尽快结束本地 pending 状态；对端投递失败不应回滚已入库消息。
         send(senderSession, buildEnvelope("CHAT_ACK", Map.of(
             "messageId", sentMessage.getMessageId(),
             "status", "server_received",
@@ -108,6 +109,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         }
         WebSocketSession peerSession = sessionRegistry.get(peerUid);
         if (peerSession != null && peerSession.isOpen()) {
+            // 已读通知只做在线同步；真正状态已经落库，离线端靠后续历史接口自愈。
             send(peerSession, buildEnvelope("CHAT_READ", Map.of(
                 "conversationId", request.getConversationId(),
                 "messageIds", request.getMessageIds() == null ? List.of() : request.getMessageIds(),

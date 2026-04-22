@@ -15,9 +15,11 @@ interface DisguiseEntryPageProps {
 
 function normalizeLuckyNumberInput(value: string): string {
   return value
+    // 伪装入口面向移动端输入，先兼容全角数字，减少因为输入法差异导致的误判。
     .replace(/[０-９]/g, (digit) =>
       String.fromCharCode(digit.charCodeAt(0) - 0xfee0),
     )
+    // 去掉零宽字符和不易察觉的空白，避免“看起来一样”的输入绕过或误伤校验结果。
     .replace(/[\u200B-\u200D\u2060\uFEFF\u00A0\u202F]/g, "")
     .trim();
 }

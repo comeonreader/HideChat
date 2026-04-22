@@ -137,6 +137,7 @@ public class ConversationServiceImpl implements ConversationService {
     }
 
     private ParticipantPair orderParticipants(String userUid, String peerUid) {
+        // 1V1 会话固定按 UID 排序，避免 A->B 和 B->A 两次建链生成重复会话。
         if (userUid.compareTo(peerUid) <= 0) {
             return new ParticipantPair(userUid, peerUid);
         }
@@ -175,6 +176,7 @@ public class ConversationServiceImpl implements ConversationService {
                 } else {
                     vo.setPinned(Boolean.FALSE);
                 }
+                // 列表页默认只暴露脱敏预览，防止在未进入会话前把真实消息内容直接暴露在外层界面。
                 vo.setPreviewStrategy(PREVIEW_STRATEGY_MASKED);
                 vo.setLastMessagePreview(maskPreview(conversation.getLastMessageType(), conversation.getLastMessagePreview()));
                 vo.setLastMessageType(conversation.getLastMessageType());

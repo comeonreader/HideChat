@@ -19,6 +19,7 @@ async function openDatabase(): Promise<IDBDatabase> {
         database.createObjectStore(STORE_NAME, { keyPath: "conversationId" });
       }
       if (database.objectStoreNames.contains(LEGACY_SECRET_STORE_NAME)) {
+        // 历史版本的本地 secret 存储已经废弃，升级时主动清理，避免旧明文/旧结构继续残留。
         database.deleteObjectStore(LEGACY_SECRET_STORE_NAME);
       }
     };

@@ -115,10 +115,12 @@ public class MessageServiceImpl implements MessageService {
             .last("limit " + (normalizedPageSize + 1));
         List<ImMessageEntity> messages = messageMapper.selectList(queryWrapper);
 
+        // 多取一条只为判断是否还有下一页，避免额外 count 影响消息历史查询链路。
         boolean hasMore = messages.size() > normalizedPageSize;
         if (hasMore) {
             messages = new ArrayList<>(messages.subList(0, normalizedPageSize));
         }
+        // 查询按倒序取数便于游标分页，返回前再转正序，保证前端渲染顺序稳定。
         messages.sort(Comparator.comparing(ImMessageEntity::getServerMsgTime).thenComparing(ImMessageEntity::getId));
 
         MessageHistoryVO historyVO = new MessageHistoryVO();
@@ -253,6 +255,7 @@ public class MessageServiceImpl implements MessageService {
             .eq(ImMessageReadReceiptEntity::getMessageId, messageId)
             .eq(ImMessageReadReceiptEntity::getReaderUid, readerUid));
         if (receipt != null) {
+            // 已读回执保持幂等，重复上报不能制造多条回执或反复改写时间。
             return;
         }
         receipt = new ImMessageReadReceiptEntity();
@@ -264,6 +267,7 @@ public class MessageServiceImpl implements MessageService {
     }
 
     private void refreshUnreadCounter(String ownerUid, String conversationId, LocalDateTime now) {
+        // 已读后按消息真实状态重算，避免只做减法时被重复 ACK、乱序请求或历史补写带偏未读数。
         Long unread = messageMapper.selectCount(new LambdaQueryWrapper<ImMessageEntity>()
             .eq(ImMessageEntity::getConversationId, conversationId)
             .eq(ImMessageEntity::getReceiverUid, ownerUid)

@@ -45,6 +45,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     SecurityContextHolder.getContext().setAuthentication(authentication);
                 }
             } catch (JwtException | IllegalArgumentException ignored) {
+                // 鉴权失败统一按匿名请求继续，让后续授权规则决定返回 401/403，避免过滤器直接吞掉业务响应格式。
                 SecurityContextHolder.clearContext();
             }
         }

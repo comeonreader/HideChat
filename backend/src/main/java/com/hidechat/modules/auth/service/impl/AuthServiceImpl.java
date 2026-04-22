@@ -62,6 +62,7 @@ public class AuthServiceImpl implements AuthService {
 
         ImEmailCodeEntity latest = findLatestEmailCode(request.getEmail(), bizType);
         LocalDateTime now = now();
+        // 冷却时间按邮箱 + 业务类型隔离，避免不同链路互相卡住，同时限制同一入口被滥刷。
         if (latest != null && latest.getCreatedAt() != null
             && latest.getCreatedAt().plusSeconds(EMAIL_CODE_RESEND_SECONDS).isAfter(now)) {
             throw new BusinessException(410107, "发送验证码过于频繁");
@@ -285,6 +286,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private void revokeAllRefreshTokensByUserUid(String userUid) {
+        // 重置密码后统一吊销旧 refresh token，避免旧设备继续长期持有会话。
         refreshTokenMapper.update(null, new UpdateWrapper<ImRefreshTokenEntity>()
             .eq("user_uid", userUid)
             .eq("revoked", Boolean.FALSE)
@@ -307,6 +309,7 @@ public class AuthServiceImpl implements AuthService {
         String refreshTokenId = randomValueGenerator.tokenId();
         LocalDateTime now = now();
 
+        // refresh token 必须先落库，后续刷新/登出才能做服务端撤销而不是只依赖 JWT 自身过期。
         ImRefreshTokenEntity refreshTokenEntity = new ImRefreshTokenEntity();
         refreshTokenEntity.setId(idGenerator.nextId());
         refreshTokenEntity.setUserUid(user.getUserUid());
