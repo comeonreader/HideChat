@@ -142,101 +142,148 @@ export function DisguiseEntryPage({
 
   return (
     <div className="disguise-container">
-      <header className="disguise-header">
-        <h1>{config?.siteTitle || "命运入口"}</h1>
-        <div className="view-switcher">
-          <button
-            className={`view-button ${view === "lucky" ? "active" : ""}`}
-            onClick={handleSwitchToLucky}
-            disabled={view === "lucky"}
-          >
-            幸运数字
-          </button>
-        </div>
-      </header>
+      <div className="disguise-shell">
+        <header className="disguise-hero">
+          <div className="disguise-eyebrow">今日只有一次命运触发机会</div>
+          <h1>{config?.siteTitle || "命运入口"}</h1>
+          <p className="disguise-subtitle">
+            输入一个你直觉正确的幸运数字，页面会给你一条今日回应。
+          </p>
+        </header>
 
-      <main className="disguise-main">
-        {view === "lucky" ? (
-          <div className="lucky-number-view">
-            <div className="last-lucky-number">
-              <span className="label">上次验证数字：</span>
-              <span className="value">{lastLuckyNumber}</span>
+        <main className="disguise-panel">
+          {view === "lucky" ? (
+            <div className="disguise-grid">
+              <section className="disguise-card disguise-card--primary">
+                <h2 className="unlock-title">输入幸运数字</h2>
+                <p className="unlock-desc">
+                  不需要知道答案，只需要相信直觉。
+                  <br />
+                  页面会根据你的选择，给出今天的回应。
+                </p>
+
+                <div className="badge-row" aria-label="入口提示">
+                  <span className="badge">上次验证：{lastLuckyNumber}</span>
+                  <span className="badge">建议输入 4 位数字</span>
+                  <span className="badge">按回车可直接提交</span>
+                </div>
+
+                <div className="input-shell">
+                  <div className="input-label-row">
+                    <label htmlFor="luckyCode">请输入今日幸运数字</label>
+                    <span>仅接受当前输入内容</span>
+                  </div>
+                  <input
+                    id="luckyCode"
+                    type="text"
+                    value={luckyCodeInput}
+                    onChange={(e) => setLuckyCodeInput(e.target.value)}
+                    placeholder="例如：2468"
+                    disabled={isLoading}
+                    inputMode="numeric"
+                    autoComplete="off"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !isLoading) {
+                        handleVerifyLuckyNumber();
+                      }
+                    }}
+                  />
+                  {error && <div className="input-error">{error}</div>}
+                </div>
+
+                <div className="action-row">
+                  <button
+                    className="action-button action-button--primary"
+                    onClick={handleVerifyLuckyNumber}
+                    disabled={isLoading || !normalizeLuckyNumberInput(luckyCodeInput)}
+                  >
+                    {isLoading ? "校验中..." : "查看彩蛋"}
+                  </button>
+                  <button
+                    className="action-button action-button--ghost"
+                    type="button"
+                    onClick={() => setView("fortune")}
+                    disabled={isLoading}
+                  >
+                    看看今日建议
+                  </button>
+                </div>
+
+                <div className={`status-card${error ? " status-card--error" : ""}`}>
+                  {statusNote ?? "提示：正确的数字不会主动出现，但整齐的组合更值得试试。"}
+                </div>
+              </section>
+
+              <aside className="side-stack">
+                <section className="disguise-card teaser-card">
+                  <div>
+                    <h2>今天会发生什么？</h2>
+                    <p>
+                      大多数数字会带来一条今日建议，提醒你慢一点、稳一点。
+                      <br />
+                      也许某个组合，会让页面出现完全不同的走向。
+                    </p>
+                  </div>
+
+                  <div className="hint-card">
+                    <div className="hint-title">轻提示</div>
+                    <p>数字通常很整齐，看起来像一步一步靠近终点。</p>
+                    <p>越平衡、越顺的组合，越容易被记住。</p>
+                  </div>
+                </section>
+
+                {fortune && (
+                  <section className="disguise-card mini-card">
+                    <div className="mini-label">今日建议</div>
+                    <div className="mini-value">{fortune.summary}</div>
+                    <div className="mini-meta">
+                      <span>幸运颜色：{fortune.luckyColor}</span>
+                      <span>幸运方向：{fortune.luckyDirection}</span>
+                    </div>
+                  </section>
+                )}
+              </aside>
             </div>
+          ) : (
+            <section className="fortune-view">
+              {fortune && (
+                <div className="disguise-card fortune-card">
+                  <div className="fortune-header">
+                    <div>
+                      <div className="fortune-kicker">今日建议</div>
+                      <h2>{fortune.title}</h2>
+                    </div>
+                    <button className="action-button action-button--ghost" onClick={handleSwitchToLucky}>
+                      返回幸运数字
+                    </button>
+                  </div>
 
-            <div className="input-section">
-              <label htmlFor="luckyCode">请输入今日幸运数字</label>
-              <input
-                id="luckyCode"
-                type="text"
-                value={luckyCodeInput}
-                onChange={(e) => setLuckyCodeInput(e.target.value)}
-                placeholder="请输入幸运数字"
-                disabled={isLoading}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !isLoading) {
-                    handleVerifyLuckyNumber();
-                  }
-                }}
-              />
-              {error && <div className="input-error">{error}</div>}
-            </div>
-
-            <button
-              className="verify-button"
-              onClick={handleVerifyLuckyNumber}
-              disabled={isLoading || !normalizeLuckyNumberInput(luckyCodeInput)}
-            >
-              {isLoading ? "校验中..." : "查看彩蛋"}
-            </button>
-
-            {statusNote && <div className="hint">{statusNote}</div>}
-
-            <div className="hint">
-              <p>提示：输入正确的幸运数字可开启今日彩蛋</p>
-              <p>忘记幸运数字？可以先看看今日建议再试试</p>
-            </div>
-          </div>
-        ) : (
-          <div className="fortune-view">
-            {fortune && (
-              <>
-                <div className="fortune-card">
-                  <h2>{fortune.title}</h2>
                   <div className="fortune-summary">
                     <p>{fortune.summary}</p>
                   </div>
 
                   <div className="fortune-details">
                     <div className="detail-item">
-                      <span className="detail-label">幸运颜色：</span>
+                      <span className="detail-label">幸运颜色</span>
                       <span className="detail-value">{fortune.luckyColor}</span>
                     </div>
                     <div className="detail-item">
-                      <span className="detail-label">幸运方向：</span>
-                      <span className="detail-value">
-                        {fortune.luckyDirection}
-                      </span>
+                      <span className="detail-label">幸运方向</span>
+                      <span className="detail-value">{fortune.luckyDirection}</span>
                     </div>
                     <div className="detail-item">
-                      <span className="detail-label">今日建议：</span>
+                      <span className="detail-label">今日建议</span>
                       <span className="detail-value">{fortune.advice}</span>
                     </div>
                   </div>
-                </div>
 
-                <div className="fortune-actions">
-                  <button className="back-button" onClick={handleSwitchToLucky}>
-                    返回幸运数字
-                  </button>
-                  <div className="fortune-note">
-                    <p>运势仅供参考，祝您有美好的一天！</p>
-                  </div>
+                  <div className="fortune-note">运势仅供参考，保持轻松会更容易收到好消息。</div>
                 </div>
-              </>
-            )}
-          </div>
-        )}
-      </main>
+              )}
+            </section>
+          )}
+        </main>
+      </div>
     </div>
   );
 }
