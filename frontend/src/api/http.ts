@@ -1,7 +1,8 @@
 import type { ApiErrorPayload, AuthTokens } from "../types";
 import { clearStoredAuthState, getStoredAuthState } from "./auth-storage";
+import { resolveApiBaseUrl } from "./network";
 
-const baseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api";
+const baseUrl = resolveApiBaseUrl(import.meta.env.VITE_API_BASE_URL as string | undefined);
 
 interface ApiEnvelope<T> {
   code: number;

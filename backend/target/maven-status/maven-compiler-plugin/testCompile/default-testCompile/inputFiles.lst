@@ -29,6 +29,7 @@
 /home/reader/HideChat/backend/src/test/java/com/hidechat/modules/user/UserControllerTest.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/modules/user/UserServiceImplTest.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/modules/user/package-info.java
+/home/reader/HideChat/backend/src/test/java/com/hidechat/security/SecurityConfigTest.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/security/jwt/JwtTokenProviderTest.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/support/package-info.java
 /home/reader/HideChat/backend/src/test/java/com/hidechat/websocket/ChatWebSocketHandlerTest.java

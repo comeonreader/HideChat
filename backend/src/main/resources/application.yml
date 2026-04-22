@@ -36,6 +36,7 @@ spring:
             enable: ${SPRING_MAIL_SMTP_SSL_ENABLE:false}
 
 server:
+  address: ${SERVER_ADDRESS:0.0.0.0}
   port: 8080
   servlet:
     context-path: /
@@ -70,6 +71,27 @@ hidechat:
       allowed-origins:
         - ${HIDECHAT_ALLOWED_ORIGIN:http://localhost:5173}
         - http://127.0.0.1:5173
+      allowed-origin-patterns:
+        - ${HIDECHAT_ALLOWED_ORIGIN_PATTERN:http://localhost:*}
+        - http://127.0.0.1:*
+        - http://192.168.*:*
+        - http://10.*:*
+        - http://172.16.*:*
+        - http://172.17.*:*
+        - http://172.18.*:*
+        - http://172.19.*:*
+        - http://172.20.*:*
+        - http://172.21.*:*
+        - http://172.22.*:*
+        - http://172.23.*:*
+        - http://172.24.*:*
+        - http://172.25.*:*
+        - http://172.26.*:*
+        - http://172.27.*:*
+        - http://172.28.*:*
+        - http://172.29.*:*
+        - http://172.30.*:*
+        - http://172.31.*:*
       auth-requests-per-minute: ${HIDECHAT_AUTH_RPM:30}
       websocket-messages-per-minute: ${HIDECHAT_WS_RPM:120}
   websocket:

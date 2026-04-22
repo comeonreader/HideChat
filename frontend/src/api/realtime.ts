@@ -1,8 +1,12 @@
+import { resolveWebSocketBaseUrl } from "./network";
+
 export function createChatWebSocket(accessToken: string): WebSocket {
-  const configuredUrl = import.meta.env.VITE_WS_BASE_URL as string | undefined;
-  const url = configuredUrl
-    ? new URL(configuredUrl, window.location.origin)
-    : new URL(`${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws/chat`);
+  const url = new URL(
+    resolveWebSocketBaseUrl({
+      configuredApiBaseUrl: import.meta.env.VITE_API_BASE_URL as string | undefined,
+      configuredWsBaseUrl: import.meta.env.VITE_WS_BASE_URL as string | undefined
+    })
+  );
   url.searchParams.set("token", accessToken);
   return new WebSocket(url);
 }

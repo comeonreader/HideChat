@@ -1,10 +1,14 @@
 #!/bin/bash
 
 # HideChat 局域网访问测试脚本
-# 在其他Linux机器上运行此脚本测试连接
+# 在其他 Linux 机器上运行此脚本测试连接
+# 默认优先验证网关端口 80；如果宿主机自定义了端口，请通过环境变量覆盖。
 
-SERVER_IP="192.168.209.157"
-PORTS=("5173" "80" "8080" "8025")
+SERVER_IP="${SERVER_IP:-192.168.209.157}"
+GATEWAY_PORT="${GATEWAY_PORT:-80}"
+BACKEND_PORT="${BACKEND_PORT:-8080}"
+MAILPIT_PORT="${MAILPIT_PORT:-8025}"
+PORTS=("$GATEWAY_PORT" "$BACKEND_PORT" "$MAILPIT_PORT")
 
 echo "=== HideChat 局域网访问测试 ==="
 echo "服务器IP: $SERVER_IP"
@@ -25,23 +29,15 @@ echo ""
 echo "2. 测试服务端口:"
 
 for port in "${PORTS[@]}"; do
-    case $port in
-        5173)
-            service_name="前端 (Nginx代理)"
-            ;;
-        80)
-            service_name="Nginx网关"
-            ;;
-        8080)
-            service_name="后端API"
-            ;;
-        8025)
-            service_name="邮件测试界面"
-            ;;
-        *)
-            service_name="未知服务"
-            ;;
-    esac
+    if [[ "$port" == "$GATEWAY_PORT" ]]; then
+        service_name="Web 网关"
+    elif [[ "$port" == "$BACKEND_PORT" ]]; then
+        service_name="后端 API"
+    elif [[ "$port" == "$MAILPIT_PORT" ]]; then
+        service_name="邮件测试界面"
+    else
+        service_name="未知服务"
+    fi
     
     if timeout 2 bash -c "cat < /dev/null > /dev/tcp/$SERVER_IP/$port" 2>/dev/null; then
         echo "   ✅ 端口 $port ($service_name): 开放"
@@ -55,11 +51,11 @@ echo ""
 echo "3. 测试HTTP访问:"
 
 # 测试前端访问
-echo "   测试前端访问 (端口 5173):"
-http_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 http://$SERVER_IP:5173 2>/dev/null || echo "000")
+echo "   测试前端访问 (网关端口 ${GATEWAY_PORT}):"
+http_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 http://$SERVER_IP:$GATEWAY_PORT 2>/dev/null || echo "000")
 if [[ $http_code =~ ^[2-3] ]]; then
     echo "   ✅ HTTP状态码: $http_code - 可以正常访问"
-    echo "      请在浏览器打开: http://$SERVER_IP:5173"
+    echo "      请在浏览器打开: http://$SERVER_IP:$GATEWAY_PORT"
 else
     echo "   ❌ HTTP状态码: $http_code - 访问失败"
 fi

@@ -13,6 +13,10 @@ set +a
 
 echo "Gateway mode: ${MODE}"
 
+detect_lan_ip() {
+  hostname -I 2>/dev/null | awk '{print $1}'
+}
+
 wait_for_http() {
   local url="$1"
   local output_file="$2"
@@ -53,6 +57,15 @@ echo "== gateway =="
 wait_for_http "http://127.0.0.1:${GATEWAY_PORT}/" /tmp/hidechat-gateway-check.html
 grep -q "HideChat" /tmp/hidechat-gateway-check.html
 echo "gateway ok"
+
+LAN_IP="$(detect_lan_ip || true)"
+if [[ -n "${LAN_IP}" ]]; then
+  echo
+  echo "== gateway (lan: ${LAN_IP}) =="
+  wait_for_http "http://${LAN_IP}:${GATEWAY_PORT}/" /tmp/hidechat-gateway-lan-check.html
+  grep -q "HideChat" /tmp/hidechat-gateway-lan-check.html
+  echo "gateway lan ok"
+fi
 
 echo
 echo "== postgres =="

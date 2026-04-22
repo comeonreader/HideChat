@@ -28,6 +28,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(chatWebSocketHandler, "/ws/chat")
             .addInterceptors(jwtHandshakeInterceptor)
-            .setAllowedOrigins(securityWebProperties.getAllowedOrigins().toArray(String[]::new));
+            .setAllowedOrigins(securityWebProperties.getAllowedOrigins().toArray(String[]::new))
+            .setAllowedOriginPatterns(securityWebProperties.getAllowedOriginPatterns().toArray(String[]::new));
     }
 }
