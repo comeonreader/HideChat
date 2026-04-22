@@ -1,4 +1,6 @@
 import type { ChatMessage } from "../types";
+export * from "./chat-format";
+export * from "./chat-message";
 
 export function createMessage(input: {
   conversationId: string;

@@ -1,13 +1,11 @@
-import { useEffect, useRef, useState } from "react";
-import { MobileBottomNav } from "../components/mobile/MobileBottomNav";
+import { useCallback, useEffect, useRef } from "react";
+import { AuthView } from "../components/chat/AuthView";
+import { ChatShell } from "../components/chat/ChatShell";
 import {
   addContact,
-  clearConversationUnread,
   clearStoredAuthState,
-  createChatWebSocket,
   createSingleConversation,
   fetchCurrentUser,
-  getPersistedAuthTokens,
   listContacts,
   listConversations,
   listRecentContacts,
@@ -15,7 +13,6 @@ import {
   loginByEmailCode,
   loginByPassword,
   logout,
-  markMessagesRead,
   registerByEmail,
   resetPassword,
   searchUsers,
@@ -23,35 +20,35 @@ import {
   sendMessage,
   uploadFile
 } from "../api/client";
+import { useAuthBootstrap } from "../hooks/useAuthBootstrap";
+import { useChatRealtime } from "../hooks/useChatRealtime";
+import { useChatState, type ChatView, type MobilePage } from "../hooks/useChatState";
+import { useViewport } from "../hooks/useViewport";
 import { DisguiseEntryPage } from "../pages/disguise/DisguiseEntryPage";
-import { MobileConversationDetailPage } from "../pages/mobile/MobileConversationDetailPage";
-import { MobileConversationListPage } from "../pages/mobile/MobileConversationListPage";
-import { MobileFortunePage } from "../pages/mobile/MobileFortunePage";
-import { MobileFriendsPage } from "../pages/mobile/MobileFriendsPage";
-import { clearCachedConversations, listCachedConversations, saveCachedConversation } from "../storage";
-import type {
-  ChatMessage,
-  ContactItem,
-  ConversationItem,
-  FileInfo,
-  HiddenSession,
-  LocalUser,
-  RecentContactItem,
-  UserSearchItem
-} from "../types";
-import { buildMessagePreview, createMessage } from "../utils";
+import { clearCachedConversations } from "../storage";
+import type { ChatMessage, ConversationItem, HiddenSession, LocalUser } from "../types";
+import {
+  buildFilePayload,
+  buildMessagePreview,
+  createMessage,
+  extractTextPayload,
+  formatConversationDivider,
+  formatFileSubtitle,
+  formatMessageTime,
+  formatRecentAdded,
+  getAvatarLabel,
+  getConversationTitle,
+  getMaskedConversationPreview,
+  normalizeIncomingMessage,
+  parseFilePayload,
+  removeMessage,
+  resolveFileMessageType,
+  resolvePeerUid,
+  sortContacts,
+  sortConversations,
+  sortRecentContacts
+} from "../utils";
 import "./app.css";
-
-type Screen = "disguise" | "auth" | "chat";
-type PublicView = "lucky" | "fortune";
-type AuthMode = "login" | "register" | "reset";
-type LoginMethod = "password" | "code";
-type ChatView = "list" | "conversation" | "add-friend";
-type MobilePage =
-  | { name: "chat_list" }
-  | { name: "chat_detail"; conversationId: string }
-  | { name: "friends" }
-  | { name: "fortune" };
 
 const MOBILE_VIEWPORT_QUERY = "(max-width: 900px)";
 
@@ -63,290 +60,74 @@ function resolvePostUnlockMobilePage(): MobilePage {
   return { name: "chat_list" };
 }
 
-interface WsEnvelope {
-  type: string;
-  data: unknown;
-}
-
-interface AuthFormState {
-  email: string;
-  nickname: string;
-  password: string;
-  newPassword: string;
-  emailCode: string;
-}
-
 export function App() {
-  const [screen, setScreen] = useState<Screen>("disguise");
-  const [publicView, setPublicView] = useState<PublicView>("lucky");
-  const [chatView, setChatView] = useState<ChatView>("list");
-  const [mobilePage, setMobilePage] = useState<MobilePage>(resolvePostUnlockMobilePage);
-  const [isMobileViewport, setIsMobileViewport] = useState(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-      return false;
-    }
-    return window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
-  });
-  const [authMode, setAuthMode] = useState<AuthMode>("login");
-  const [loginMethod, setLoginMethod] = useState<LoginMethod>("password");
-  const [session, setSession] = useState<HiddenSession | null>(null);
-  const [contacts, setContacts] = useState<ContactItem[]>([]);
-  const [recentContacts, setRecentContacts] = useState<RecentContactItem[]>([]);
-  const [conversations, setConversations] = useState<ConversationItem[]>([]);
-  const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({});
-  const [activeConversationId, setActiveConversationId] = useState("");
-  const [composer, setComposer] = useState("");
-  const [statusText, setStatusText] = useState("输入幸运数字后可继续。");
-  const [authLoading, setAuthLoading] = useState(false);
-  const [sendCodeLoading, setSendCodeLoading] = useState(false);
-  const [searchingUsers, setSearchingUsers] = useState(false);
-  const [uploadingFile, setUploadingFile] = useState(false);
-  const [contactForm, setContactForm] = useState({ peerUid: "", remarkName: "" });
-  const [chatSearchQuery, setChatSearchQuery] = useState("");
-  const [friendSearchQuery, setFriendSearchQuery] = useState("");
-  const [userSearchResults, setUserSearchResults] = useState<UserSearchItem[]>([]);
-  const [authForm, setAuthForm] = useState<AuthFormState>({
-    email: "",
-    nickname: "",
-    password: "",
-    newPassword: "",
-    emailCode: ""
+  const isMobileViewport = useViewport(MOBILE_VIEWPORT_QUERY);
+  const {
+    screen,
+    setScreen,
+    publicView,
+    setPublicView,
+    chatView,
+    setChatView,
+    mobilePage,
+    setMobilePage,
+    authMode,
+    setAuthMode,
+    loginMethod,
+    setLoginMethod,
+    session,
+    setSession,
+    contacts,
+    setContacts,
+    recentContacts,
+    setRecentContacts,
+    conversations,
+    setConversations,
+    messages,
+    setMessages,
+    activeConversationId,
+    setActiveConversationId,
+    composer,
+    setComposer,
+    statusText,
+    setStatusText,
+    authLoading,
+    setAuthLoading,
+    sendCodeLoading,
+    setSendCodeLoading,
+    searchingUsers,
+    setSearchingUsers,
+    uploadingFile,
+    setUploadingFile,
+    contactForm,
+    setContactForm,
+    chatSearchQuery,
+    setChatSearchQuery,
+    friendSearchQuery,
+    setFriendSearchQuery,
+    userSearchResults,
+    setUserSearchResults,
+    authForm,
+    setAuthForm,
+    activeConversation,
+    currentMessages,
+    isDesktopConversationView,
+    isMobileConversationView,
+    filteredConversations,
+    selectedContact,
+    visibleDesktopMessages,
+    hydrateMessages
+  } = useChatState({
+    isMobileViewport,
+    getDefaultChatView,
+    resolvePostUnlockMobilePage
   });
 
-  const wsRef = useRef<WebSocket | null>(null);
-  const conversationsRef = useRef<ConversationItem[]>([]);
-  const activeConversationIdRef = useRef("");
-  const previousViewportRef = useRef(isMobileViewport);
+  const conversationsRef = useRef(conversations);
 
   useEffect(() => {
     conversationsRef.current = conversations;
   }, [conversations]);
-
-  useEffect(() => {
-    activeConversationIdRef.current = activeConversationId;
-  }, [activeConversationId]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-      return;
-    }
-
-    const mediaQuery = window.matchMedia(MOBILE_VIEWPORT_QUERY);
-    const handleChange = (event: MediaQueryListEvent) => {
-      setIsMobileViewport(event.matches);
-    };
-
-    setIsMobileViewport(mediaQuery.matches);
-
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", handleChange);
-      return () => mediaQuery.removeEventListener("change", handleChange);
-    }
-
-    mediaQuery.addListener(handleChange);
-    return () => mediaQuery.removeListener(handleChange);
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void (async () => {
-      const persistedTokens = getPersistedAuthTokens();
-      if (!persistedTokens) {
-        return;
-      }
-
-      try {
-        const currentUser = await fetchCurrentUser();
-        if (cancelled) {
-          return;
-        }
-        await hydrateAuthenticatedState(currentUser, persistedTokens, false);
-        if (!cancelled) {
-          setStatusText("检测到本地登录态，输入幸运数字后可直接进入聊天。");
-        }
-      } catch {
-        // Ignore bootstrap errors so the disguise flow remains primary.
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!session?.user.userUid) {
-      return;
-    }
-
-    void (async () => {
-      const entries = Object.entries(messages);
-      for (const [conversationId, items] of entries) {
-        await saveCachedConversation({
-          conversationId,
-          messages: items,
-          updatedAt: Date.now()
-        });
-      }
-    })();
-  }, [messages, session]);
-
-  useEffect(() => {
-    if (!session?.tokens?.accessToken || screen !== "chat") {
-      closeWebSocket();
-      return;
-    }
-
-    const socket = createChatWebSocket(session.tokens.accessToken);
-    wsRef.current = socket;
-
-    socket.onopen = () => {
-      setStatusText("已连接后端聊天通道，实时消息已启用。");
-    };
-
-    socket.onmessage = (event) => {
-      void handleSocketMessage(event.data);
-    };
-
-    socket.onclose = () => {
-      if (wsRef.current === socket) {
-        wsRef.current = null;
-      }
-    };
-
-    return () => {
-      if (wsRef.current === socket) {
-        wsRef.current = null;
-      }
-      socket.close();
-    };
-  }, [screen, session]);
-
-  useEffect(() => {
-    if (screen !== "chat" || previousViewportRef.current === isMobileViewport) {
-      return;
-    }
-
-    previousViewportRef.current = isMobileViewport;
-    if (isMobileViewport) {
-      if (chatView === "add-friend") {
-        setMobilePage({ name: "friends" });
-        return;
-      }
-      setMobilePage(resolvePostUnlockMobilePage());
-      return;
-    }
-
-    if (mobilePage.name === "friends") {
-      setChatView("add-friend");
-      return;
-    }
-    if (mobilePage.name === "chat_detail" && activeConversationId) {
-      setChatView("conversation");
-      return;
-    }
-    setChatView("list");
-  }, [activeConversationId, chatView, isMobileViewport, mobilePage, screen]);
-
-  useEffect(() => {
-    if (!activeConversationId) {
-      return;
-    }
-    const exists = conversations.some((item) => item.conversationId === activeConversationId);
-    if (exists) {
-      return;
-    }
-    setActiveConversationId("");
-    if (isMobileViewport && mobilePage.name === "chat_detail") {
-      setMobilePage(resolvePostUnlockMobilePage());
-    }
-    if (!isMobileViewport && chatView === "conversation") {
-      setChatView("list");
-    }
-  }, [activeConversationId, chatView, conversations, isMobileViewport, mobilePage]);
-
-  const activeConversation = conversations.find((item) => item.conversationId === activeConversationId) ?? null;
-  const currentMessages = activeConversationId ? messages[activeConversationId] ?? [] : [];
-  const isDesktopConversationView = !isMobileViewport && chatView === "conversation" && Boolean(activeConversation);
-  const isMobileConversationView =
-    isMobileViewport &&
-    mobilePage.name === "chat_detail" &&
-    activeConversationId === mobilePage.conversationId &&
-    Boolean(activeConversation);
-  const filteredConversations = conversations.filter((conversation) => {
-    if (!isMobileViewport && chatView === "conversation") {
-      return true;
-    }
-    if (!chatSearchQuery.trim()) {
-      return true;
-    }
-    const keyword = chatSearchQuery.trim().toLowerCase();
-    return [conversation.remarkName, conversation.peerNickname, conversation.peerUid].some((value) =>
-      (value ?? "").toLowerCase().includes(keyword)
-    );
-  });
-  const selectedContact =
-    contacts.find((contact) => contact.peerUid === activeConversation?.peerUid) ??
-    (activeConversation
-      ? {
-          peerUid: activeConversation.peerUid,
-          peerNickname: activeConversation.peerNickname ?? activeConversation.remarkName,
-          remarkName: activeConversation.remarkName,
-          lastMessageAt: activeConversation.lastMessageAt
-        }
-      : null);
-  const visibleDesktopMessages =
-    isDesktopConversationView && chatSearchQuery.trim()
-      ? currentMessages.filter((message) => matchesMessageSearch(message, chatSearchQuery))
-      : currentMessages;
-
-  useEffect(() => {
-    if (!session || screen !== "chat" || !activeConversationId) {
-      return;
-    }
-    const conversationVisible = isDesktopConversationView || isMobileConversationView;
-    if (!conversationVisible) {
-      return;
-    }
-    void clearConversationUnread(activeConversationId).catch(() => undefined);
-  }, [activeConversationId, isDesktopConversationView, isMobileConversationView, screen, session]);
-
-  useEffect(() => {
-    if (!session || screen !== "chat" || !activeConversation) {
-      return;
-    }
-    const conversationVisible = isDesktopConversationView || isMobileConversationView;
-    if (!conversationVisible) {
-      return;
-    }
-    const unreadMessageIds = currentMessages
-      .filter((message) => message.receiverUid === session.user.userUid && message.serverStatus !== "read")
-      .map((message) => message.messageId);
-    if (unreadMessageIds.length === 0) {
-      return;
-    }
-    void syncReadState(activeConversation.conversationId, unreadMessageIds);
-  }, [activeConversation, currentMessages, isDesktopConversationView, isMobileConversationView, screen, session]);
-
-  async function handleSocketMessage(rawData: string) {
-    try {
-      const envelope = JSON.parse(rawData) as WsEnvelope;
-      if (envelope.type === "CHAT_RECEIVE") {
-        await handleIncomingRealtimeMessage(normalizeIncomingMessage(envelope.data));
-        return;
-      }
-      if (envelope.type === "CHAT_ACK") {
-        reconcileAck(envelope.data);
-        return;
-      }
-      if (envelope.type === "CHAT_READ") {
-        applyReadReceipt(envelope.data);
-      }
-    } catch {
-      setStatusText("收到无法解析的实时消息，已忽略。");
-    }
-  }
 
   async function handleAuthSubmit() {
     setAuthLoading(true);
@@ -515,24 +296,21 @@ export function App() {
     });
 
     applyIncomingMessage(optimisticMessage);
-    const socket = wsRef.current;
-
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(
-        JSON.stringify({
-          type: "CHAT_SEND",
-          data: {
-            messageId: optimisticMessage.messageId,
-            conversationId: input.conversationId,
-            receiverUid: input.receiverUid,
-            messageType: input.messageType,
-            payloadType: input.payloadType,
-            payload: input.payload,
-            fileId: input.fileId,
-            clientMsgTime: optimisticMessage.clientMsgTime
-          }
-        })
-      );
+    if (
+      sendRealtimePayload({
+        type: "CHAT_SEND",
+        data: {
+          messageId: optimisticMessage.messageId,
+          conversationId: input.conversationId,
+          receiverUid: input.receiverUid,
+          messageType: input.messageType,
+          payloadType: input.payloadType,
+          payload: input.payload,
+          fileId: input.fileId,
+          clientMsgTime: optimisticMessage.clientMsgTime
+        }
+      })
+    ) {
       setStatusText(
         input.messageType === "image"
           ? "图片消息已通过 WebSocket 发出。"
@@ -600,7 +378,7 @@ export function App() {
     setContacts((prev) =>
       sortContacts(
         prev.map((item) =>
-          item.peerUid === resolvePeerUid(message)
+          item.peerUid === resolvePeerUid(message, session?.user.userUid)
             ? {
                 ...item,
                 lastMessageAt: message.serverMsgTime
@@ -658,20 +436,6 @@ export function App() {
     }));
   }
 
-  async function syncReadState(conversationId: string, messageIds: string[]) {
-    try {
-      const socket = wsRef.current;
-      if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: "CHAT_READ", data: { conversationId, messageIds } }));
-      } else {
-        await markMessagesRead(conversationId, messageIds);
-      }
-      applyReadReceipt({ conversationId, messageIds });
-    } catch {
-      // Ignore read-sync failures so the chat view remains usable.
-    }
-  }
-
   async function refreshConversationList(): Promise<ConversationItem[]> {
     try {
       const latestConversations = sortConversations(await listConversations());
@@ -683,20 +447,13 @@ export function App() {
   }
 
   function handleReturnToDisguise() {
-    closeWebSocket();
+    closeRealtimeConnection();
     setComposer("");
     setScreen("disguise");
     setPublicView("lucky");
     setChatView("list");
     setMobilePage(resolvePostUnlockMobilePage());
     setStatusText("已返回伪装入口。");
-  }
-
-  function closeWebSocket() {
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
   }
 
   async function handleLogout() {
@@ -714,7 +471,7 @@ export function App() {
       clearStoredAuthState();
     }
 
-    closeWebSocket();
+    closeRealtimeConnection();
     await clearCachedConversations();
     setSession(null);
     setContacts([]);
@@ -748,7 +505,7 @@ export function App() {
       nextConversationsPromise,
       listRecentContacts(4).catch(() => [])
     ]);
-    const nextMessages = await hydrateMessages(nextConversations);
+    const nextMessages = await hydrateMessages(nextConversations, listMessageHistory);
     const defaultConversationId = nextConversations[0]?.conversationId ?? "";
 
     setContacts(sortContacts(nextContacts));
@@ -767,24 +524,32 @@ export function App() {
     }
   }
 
-  async function hydrateMessages(nextConversations: ConversationItem[]): Promise<Record<string, ChatMessage[]>> {
-    const cachedRecords = await listCachedConversations().catch(() => []);
-    const cacheMap = new Map(cachedRecords.map((record) => [record.conversationId, record.messages]));
-    const entries = await Promise.all(
-      nextConversations.map(async (conversation) => {
-        const cachedMessages = cacheMap.get(conversation.conversationId);
-        if (cachedMessages && cachedMessages.length > 0) {
-          return [conversation.conversationId, cachedMessages] as const;
-        }
-        try {
-          return [conversation.conversationId, await listMessageHistory(conversation.conversationId)] as const;
-        } catch {
-          return [conversation.conversationId, []] as const;
-        }
-      })
-    );
-    return Object.fromEntries(entries);
-  }
+  const hydrateStoredSession = useCallback(
+    async (user: LocalUser, tokens: NonNullable<HiddenSession["tokens"]>) => {
+      await hydrateAuthenticatedState(user, tokens, false);
+    },
+    [isMobileViewport]
+  );
+
+  useAuthBootstrap({
+    onAuthenticated: hydrateStoredSession,
+    onStatusChange: setStatusText
+  });
+
+  const { closeWebSocket: closeRealtimeConnection, sendRealtimePayload } = useChatRealtime({
+    screen,
+    session,
+    activeConversationId,
+    activeConversation,
+    currentMessages,
+    isDesktopConversationView,
+    isMobileConversationView,
+    onStatusChange: setStatusText,
+    onReceiveMessage: handleIncomingRealtimeMessage,
+    onAck: reconcileAck,
+    onReadReceipt: applyReadReceipt,
+    normalizeIncomingMessage
+  });
 
   function openConversation(conversationId: string) {
     setActiveConversationId(conversationId);
@@ -848,10 +613,6 @@ export function App() {
     setStatusText("幸运数字校验通过，已返回最近会话页。");
   }
 
-  function getConversationTitle(conversation: ConversationItem): string {
-    return conversation.remarkName || conversation.peerNickname || conversation.peerUid;
-  }
-
   function getMobileNavSection(): "chat" | "friends" | "fortune" {
     if (mobilePage.name === "friends") {
       return "friends";
@@ -898,475 +659,79 @@ export function App() {
 
   function renderAuthView() {
     return (
-      <div className="page auth-page">
-        <div className="topbar">
-          <div>
-            <div className="title">隐藏入口验证</div>
-            <div className="muted">完成账号登录后直接进入聊天。</div>
-          </div>
-          <button className="btn ghost" type="button" onClick={() => setScreen("disguise")}>
-            返回运势页
-          </button>
-        </div>
-
-        <div className="auth-layout auth-layout--single">
-          <section className="card result-card auth-card-panel">
-            <div className="tabs">
-              <button
-                className={authMode === "login" ? "is-active" : ""}
-                type="button"
-                onClick={() => setAuthMode("login")}
-              >
-                登录
-              </button>
-              <button
-                className={authMode === "register" ? "is-active" : ""}
-                type="button"
-                onClick={() => setAuthMode("register")}
-              >
-                注册
-              </button>
-              <button
-                className={authMode === "reset" ? "is-active" : ""}
-                type="button"
-                onClick={() => setAuthMode("reset")}
-              >
-                找回密码
-              </button>
-            </div>
-
-            {authMode === "login" && (
-              <div className="tabs">
-                <button
-                  className={loginMethod === "password" ? "is-active" : ""}
-                  type="button"
-                  onClick={() => setLoginMethod("password")}
-                >
-                  密码登录
-                </button>
-                <button
-                  className={loginMethod === "code" ? "is-active" : ""}
-                  type="button"
-                  onClick={() => setLoginMethod("code")}
-                >
-                  验证码登录
-                </button>
-              </div>
-            )}
-
-            <div className="fields">
-              <input
-                value={authForm.email}
-                onChange={(event) => setAuthForm((prev) => ({ ...prev, email: event.target.value }))}
-                placeholder="邮箱"
-              />
-              {authMode === "register" && (
-                <input
-                  value={authForm.nickname}
-                  onChange={(event) => setAuthForm((prev) => ({ ...prev, nickname: event.target.value }))}
-                  placeholder="昵称"
-                />
-              )}
-              {(authMode === "register" || (authMode === "login" && loginMethod === "password")) && (
-                <input
-                  type="password"
-                  value={authForm.password}
-                  onChange={(event) => setAuthForm((prev) => ({ ...prev, password: event.target.value }))}
-                  placeholder="密码"
-                />
-              )}
-              {authMode === "reset" && (
-                <input
-                  type="password"
-                  value={authForm.newPassword}
-                  onChange={(event) => setAuthForm((prev) => ({ ...prev, newPassword: event.target.value }))}
-                  placeholder="新密码"
-                />
-              )}
-              {(authMode === "register" || authMode === "reset" || (authMode === "login" && loginMethod === "code")) && (
-                <input
-                  value={authForm.emailCode}
-                  onChange={(event) => setAuthForm((prev) => ({ ...prev, emailCode: event.target.value }))}
-                  placeholder="邮箱验证码"
-                />
-              )}
-            </div>
-
-            <div className="section-text">认证成功后直接进入聊天。历史消息会从本地缓存或后端历史接口恢复。</div>
-
-            <div className="auth-actions">
-              {(authMode === "register" || authMode === "reset" || (authMode === "login" && loginMethod === "code")) && (
-                <button className="btn ghost" type="button" onClick={() => void handleSendCode()} disabled={sendCodeLoading}>
-                  {sendCodeLoading ? "发送中..." : "发送验证码"}
-                </button>
-              )}
-              <button className="btn btn-brand" type="button" onClick={() => void handleAuthSubmit()} disabled={authLoading}>
-                {authLoading ? "处理中..." : authMode === "register" ? "注册并进入" : authMode === "reset" ? "重置密码" : "使用当前信息进入"}
-              </button>
-            </div>
-          </section>
-        </div>
-      </div>
+      <AuthView
+        authMode={authMode}
+        loginMethod={loginMethod}
+        authForm={authForm}
+        authLoading={authLoading}
+        sendCodeLoading={sendCodeLoading}
+        onBackToDisguise={() => setScreen("disguise")}
+        onAuthModeChange={setAuthMode}
+        onLoginMethodChange={setLoginMethod}
+        onAuthFormChange={setAuthForm}
+        onSendCode={() => void handleSendCode()}
+        onSubmit={() => void handleAuthSubmit()}
+      />
     );
   }
 
   function renderChatShell() {
-    if (isMobileViewport) {
-      return (
-        <div className="chat-page chat-page--mobile">
-          <div className="mobile-chat-shell">{renderMobilePage()}</div>
-          <MobileBottomNav
-            activeSection={getMobileNavSection()}
-            onShowChatList={showMobileChatList}
-            onShowFriends={showFriendsPage}
-            onShowFortune={showFortunePage}
-          />
-        </div>
-      );
-    }
-
-    const isConversationView = chatView === "conversation" && Boolean(activeConversation);
-    return (
-      <div className={isConversationView ? "chat-page" : ""}>
-        <div className={isConversationView ? "chat-shell" : "wechat-layout"}>
-          {renderSidebar(isConversationView)}
-          {chatView === "add-friend" ? renderAddFriendPage() : isConversationView ? renderConversationPage() : renderChatListPage()}
-        </div>
-      </div>
-    );
-  }
-
-  function renderMobilePage() {
-    const currentSession = session;
-    if (!currentSession) {
-      return null;
-    }
-
-    switch (mobilePage.name) {
-      case "chat_list":
-        return (
-          <MobileConversationListPage
-            conversations={filteredConversations}
-            activeConversationId={activeConversationId}
-            chatSearchQuery={chatSearchQuery}
-            onChatSearchQueryChange={setChatSearchQuery}
-            onOpenConversation={openConversation}
-            onShowFriendsPage={showFriendsPage}
-            getAvatarLabel={getAvatarLabel}
-            getConversationTitle={getConversationTitle}
-            getConversationPreview={getMaskedConversationPreview}
-            formatMessageTime={formatMessageTime}
-          />
-        );
-      case "chat_detail":
-        return (
-          <MobileConversationDetailPage
-            conversation={conversations.find((item) => item.conversationId === mobilePage.conversationId) ?? null}
-            messages={messages[mobilePage.conversationId] ?? []}
-            sessionUserUid={currentSession.user.userUid}
-            composer={composer}
-            uploadingFile={uploadingFile}
-            onComposerChange={setComposer}
-            onSendMessage={() => void handleSendMessage()}
-            onFileSelected={(file) => void handleFileSelected(file)}
-            onBack={showMobileChatList}
-            onLogout={() => void handleLogout()}
-            renderMessageBody={renderMessageBody}
-            getAvatarLabel={getAvatarLabel}
-            getConversationTitle={getConversationTitle}
-            formatConversationDivider={formatConversationDivider}
-          />
-        );
-      case "friends":
-        return (
-          <MobileFriendsPage
-            friendSearchQuery={friendSearchQuery}
-            remarkName={contactForm.remarkName}
-            searchingUsers={searchingUsers}
-            userSearchResults={userSearchResults}
-            recentContacts={recentContacts}
-            onFriendSearchQueryChange={setFriendSearchQuery}
-            onRemarkNameChange={(value) => setContactForm((prev) => ({ ...prev, remarkName: value }))}
-            onFriendSearch={() => void handleFriendSearch()}
-            onAddContact={(peerUid) => void handleAddContact(peerUid)}
-            getAvatarLabel={getAvatarLabel}
-            formatRecentAdded={formatRecentAdded}
-          />
-        );
-      case "fortune":
-        return <MobileFortunePage onLuckyNumberVerified={handleMobileFortuneVerified} />;
-      default:
-        return null;
-    }
-  }
-
-  function renderSidebar(inConversationLayout: boolean) {
-    return (
-      <aside className="sidebar">
-        <div className="sidebar-inner">
-          <div className="wechat-header">
-            <div className="topbar topbar-tight">
-              <div className="title title-chat">聊天</div>
-              <button className="tag tag-button" type="button" onClick={showFriendsPage}>
-                {inConversationLayout ? "添加好友" : "搜索 / 添加好友"}
-              </button>
-            </div>
-            <div className="search-box">
-              <span>🔍</span>
-              <input
-                value={chatSearchQuery}
-                onChange={(event) => setChatSearchQuery(event.target.value)}
-                placeholder={inConversationLayout ? "搜索聊天记录" : "搜索"}
-              />
-            </div>
-            <div className="muted">最近会话</div>
-          </div>
-
-          <ul className="list" aria-label="会话列表">
-            {filteredConversations.length === 0 && (
-              <li className="chat-item">
-                <div className="chat-main">
-                  <div className="preview">没有匹配的会话</div>
-                </div>
-              </li>
-            )}
-            {filteredConversations.map((conversation) => (
-              <li
-                key={conversation.conversationId}
-                className={conversation.conversationId === activeConversationId ? "chat-item active" : "chat-item"}
-              >
-                <button className="chat-item-button" type="button" onClick={() => openConversation(conversation.conversationId)}>
-                  <div className="avatar">{getAvatarLabel(getConversationTitle(conversation))}</div>
-                  <div className="chat-main">
-                    <div className="chat-row">
-                      <div className="name">{getConversationTitle(conversation)}</div>
-                      <div className="time">{formatMessageTime(conversation.lastMessageAt)}</div>
-                    </div>
-                    <div className="preview">{getMaskedConversationPreview(conversation)}</div>
-                  </div>
-                  {(conversation.unreadCount ?? 0) > 0 && <span className="count">{conversation.unreadCount}</span>}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </aside>
-    );
-  }
-
-  function renderChatListPage() {
-    return (
-      <main className="main-panel">
-        <div className="panel-header">
-          <div>
-            <div className="name header-name">{activeConversation ? getConversationTitle(activeConversation) : "最近会话"}</div>
-            <div className="muted">
-              {activeConversation ? `${selectedContact?.peerNickname ?? "联系人"} 在线状态受保护 · ${(activeConversation.unreadCount ?? 0)} 条未读` : "选择左侧会话进入聊天"}
-            </div>
-          </div>
-          <button
-            className="btn ghost"
-            type="button"
-            onClick={() => {
-              if (activeConversation) {
-                setChatView("conversation");
-              }
-            }}
-            disabled={!activeConversation}
-          >
-            进入聊天
-          </button>
-        </div>
-        <div className="empty-panel">
-          <div className="empty-card">
-            <div className="empty-illustration" />
-            <div className="section-title">像微信一样熟悉的聊天列表</div>
-            <div className="section-text">
-              左侧展示最近会话与未读消息，手机端会自动切换为单列布局。会话列表基于当前 filteredConversations 数据渲染，所有预览继续保持脱敏占位。
-            </div>
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  function renderConversationPage() {
     if (!session) {
       return null;
     }
+
     return (
-      <main className="conv-area">
-        <div className="panel-header">
-          <div>
-            <div className="name header-name">{activeConversation ? getConversationTitle(activeConversation) : "选择一个会话"}</div>
-            <div className="muted">工作日 09:00 - 22:00 活跃 · 本地缓存已启用</div>
-          </div>
-          <div className="panel-header-actions">
-            <span className="tag">支持发送文件</span>
-            <button className="btn ghost" type="button" onClick={handleReturnToDisguise}>
-              返回伪装页
-            </button>
-            <button className="btn ghost" type="button" onClick={() => void handleLogout()}>
-              退出账号
-            </button>
-          </div>
-        </div>
-
-        <div className="messages">
-          {visibleDesktopMessages.length > 0 && <div className="day-divider">{formatConversationDivider(visibleDesktopMessages[0].serverMsgTime)}</div>}
-          {visibleDesktopMessages.map((message) => renderMessageRow(message))}
-          {activeConversation && currentMessages.length === 0 && (
-            <div className="msg other">
-              <div className="bubble">暂无消息</div>
-            </div>
-          )}
-          {activeConversation && currentMessages.length > 0 && visibleDesktopMessages.length === 0 && (
-            <div className="msg other">
-              <div className="bubble">没有匹配的聊天记录</div>
-            </div>
-          )}
-        </div>
-
-        <div className="input-bar">
-          <div className="toolbar">
-            <button className="icon-btn" type="button" title="表情">
-              😊
-            </button>
-            <label className="icon-btn icon-upload" title="发送图片">
-              🖼️
-              <input
-                type="file"
-                aria-label="发送图片"
-                accept="image/*"
-                disabled={!activeConversation || uploadingFile}
-                onChange={(event) => {
-                  const selected = event.target.files?.[0] ?? null;
-                  event.currentTarget.value = "";
-                  void handleFileSelected(selected);
-                }}
-              />
-            </label>
-            <label className="icon-btn icon-upload" title="发送文件">
-              📎
-              <input
-                type="file"
-                aria-label="发送文件"
-                disabled={!activeConversation || uploadingFile}
-                onChange={(event) => {
-                  const selected = event.target.files?.[0] ?? null;
-                  event.currentTarget.value = "";
-                  void handleFileSelected(selected);
-                }}
-              />
-            </label>
-            <button className="icon-btn" type="button" title="更多">
-              ＋
-            </button>
-          </div>
-          <div className="composer composer-bar">
-            <textarea
-              aria-label="消息输入框"
-              value={composer}
-              onChange={(event) => setComposer(event.target.value)}
-              placeholder="输入消息..."
-              disabled={!activeConversation}
-            />
-            <button className="btn btn-brand send-btn" type="button" onClick={() => void handleSendMessage()} disabled={!activeConversation}>
-              发送
-            </button>
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  function renderAddFriendPage() {
-    return (
-      <main className="main-panel search-page-wrap">
-        <div className="page search-page">
-          <div className="topbar">
-            <div>
-              <div className="title">搜索 / 添加好友</div>
-              <div className="muted">支持昵称、用户 ID 搜索</div>
-            </div>
-            <button className="btn ghost" type="button" onClick={() => setChatView("list")}>
-              返回聊天
-            </button>
-          </div>
-
-          <div className="search-layout">
-            <section className="card result-card">
-              <div className="search-box search-box-action">
-                <span>🔎</span>
-                <input
-                  value={friendSearchQuery}
-                  onChange={(event) => setFriendSearchQuery(event.target.value)}
-                  placeholder="输入昵称或用户 ID"
-                />
-                <button className="btn btn-brand" type="button" onClick={() => void handleFriendSearch()} disabled={searchingUsers}>
-                  {searchingUsers ? "搜索中..." : "搜索"}
-                </button>
-              </div>
-
-              <div className="inline-fields">
-                <input
-                  value={contactForm.remarkName}
-                  onChange={(event) => setContactForm((prev) => ({ ...prev, remarkName: event.target.value }))}
-                  placeholder="备注名（可选）"
-                />
-              </div>
-
-              <div className="section-title">搜索结果</div>
-
-              {userSearchResults.length > 0 ? (
-                userSearchResults.map((result) => (
-                  <div key={result.userUid} className="user-row">
-                    <div className="avatar">{getAvatarLabel(result.nickname || result.displayUserId)}</div>
-                    <div className="user-meta">
-                      <div className="name">{contactForm.remarkName || result.nickname || result.displayUserId}</div>
-                      <div className="preview">ID: {result.displayUserId}</div>
-                    </div>
-                    <button
-                      className={result.alreadyAdded ? "btn ghost" : "btn btn-brand"}
-                      type="button"
-                      disabled={result.alreadyAdded}
-                      onClick={() => {
-                        setContactForm((prev) => ({ ...prev, peerUid: result.userUid }));
-                        void handleAddContact(result.userUid);
-                      }}
-                    >
-                      {result.alreadyAdded ? "已添加" : "添加"}
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <div className="empty-search">输入昵称或用户 ID 后即可获取真实搜索结果。</div>
-              )}
-            </section>
-
-            <aside className="card result-card">
-              <div className="section-title">最近添加</div>
-              <div className="advice-list">
-                {recentContacts.length === 0 && <div className="empty-search">暂无联系人记录</div>}
-                {recentContacts.map((contact) => (
-                  <div key={contact.peerUid} className="advice-item contact-advice">
-                    <div className="avatar small">{getAvatarLabel(contact.peerNickname || contact.displayUserId || contact.peerUid)}</div>
-                    <div>
-                      <div className="name">{contact.peerNickname || contact.displayUserId || contact.peerUid}</div>
-                      <div className="preview">{formatRecentAdded(contact.createdAt)} 已添加</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="section-title section-title-gap">提示</div>
-              <div className="section-text">
-                页面风格保持简洁，桌面端采用双栏布局，手机端自动折叠为单列。联系人搜索页不展示历史消息正文，避免公开泄露聊天内容。
-              </div>
-            </aside>
-          </div>
-        </div>
-      </main>
+      <ChatShell
+        isMobileViewport={isMobileViewport}
+        session={session}
+        chatView={chatView}
+        mobilePage={mobilePage}
+        conversations={conversations}
+        filteredConversations={filteredConversations}
+        messages={messages}
+        currentMessages={currentMessages}
+        visibleDesktopMessages={visibleDesktopMessages}
+        activeConversation={activeConversation}
+        activeConversationId={activeConversationId}
+        selectedContact={selectedContact}
+        composer={composer}
+        uploadingFile={uploadingFile}
+        chatSearchQuery={chatSearchQuery}
+        friendSearchQuery={friendSearchQuery}
+        remarkName={contactForm.remarkName}
+        searchingUsers={searchingUsers}
+        userSearchResults={userSearchResults}
+        recentContacts={recentContacts}
+        getMobileNavSection={getMobileNavSection}
+        onShowChatList={showMobileChatList}
+        onShowFriendsPage={showFriendsPage}
+        onShowFortunePage={showFortunePage}
+        onOpenConversation={openConversation}
+        onChatSearchQueryChange={setChatSearchQuery}
+        onFriendSearchQueryChange={setFriendSearchQuery}
+        onRemarkNameChange={(value) => setContactForm((prev) => ({ ...prev, remarkName: value }))}
+        onFriendSearch={() => void handleFriendSearch()}
+        onAddContact={(peerUid) => void handleAddContact(peerUid)}
+        onComposerChange={setComposer}
+        onSendMessage={() => void handleSendMessage()}
+        onFileSelected={(file) => void handleFileSelected(file)}
+        onReturnToDisguise={handleReturnToDisguise}
+        onLogout={() => void handleLogout()}
+        onEnterConversation={() => {
+          if (activeConversation) {
+            setChatView("conversation");
+          }
+        }}
+        onBackToChat={() => setChatView("list")}
+        onFortuneVerified={handleMobileFortuneVerified}
+        renderMessageBody={renderMessageBody}
+        getAvatarLabel={getAvatarLabel}
+        getConversationTitle={getConversationTitle}
+        getConversationPreview={(conversation) => getMaskedConversationPreview(conversation, messages)}
+        formatMessageTime={formatMessageTime}
+        formatConversationDivider={formatConversationDivider}
+        formatRecentAdded={formatRecentAdded}
+      />
     );
   }
 
@@ -1382,10 +747,6 @@ export function App() {
         {renderMessageBody(message, isSelf)}
       </div>
     );
-  }
-
-  function resolvePeerUid(message: ChatMessage): string {
-    return message.senderUid === session?.user.userUid ? message.receiverUid : message.senderUid;
   }
 
   function renderMessageBody(message: ChatMessage, isSelf: boolean) {
@@ -1419,169 +780,4 @@ export function App() {
     );
   }
 
-  function getMaskedConversationPreview(conversation: ConversationItem) {
-    const conversationMessages = messages[conversation.conversationId] ?? [];
-    const lastMessage = conversationMessages[conversationMessages.length - 1];
-    if (lastMessage?.messageType === "image") {
-      return "[图片消息]";
-    }
-    if (lastMessage?.messageType === "file") {
-      return "[文件消息]";
-    }
-    if (lastMessage?.messageType === "text") {
-      return "[文本消息]";
-    }
-    return conversation.lastMessagePreview.startsWith("[") ? conversation.lastMessagePreview : "[文本消息]";
-  }
-}
-
-function normalizeIncomingMessage(data: unknown): ChatMessage {
-  const raw = data as Record<string, unknown>;
-  return {
-    messageId: String(raw.messageId ?? `m_${Date.now()}`),
-    conversationId: String(raw.conversationId ?? ""),
-    senderUid: String(raw.senderUid ?? ""),
-    receiverUid: String(raw.receiverUid ?? ""),
-    payload: String(raw.payload ?? ""),
-    messageType: String(raw.messageType ?? "text"),
-    payloadType: raw.payloadType ? String(raw.payloadType) : undefined,
-    fileId: raw.fileId ? String(raw.fileId) : null,
-    clientMsgTime: raw.clientMsgTime == null ? null : Number(raw.clientMsgTime),
-    serverMsgTime: Number(raw.serverMsgTime ?? Date.now()),
-    serverStatus: raw.serverStatus ? String(raw.serverStatus) : undefined
-  };
-}
-
-function sortContacts(items: ContactItem[]): ContactItem[] {
-  return [...items].sort((left, right) => (right.lastMessageAt ?? 0) - (left.lastMessageAt ?? 0));
-}
-
-function sortRecentContacts(items: RecentContactItem[]): RecentContactItem[] {
-  return [...items].sort((left, right) => (right.createdAt ?? 0) - (left.createdAt ?? 0));
-}
-
-function sortConversations(items: ConversationItem[]): ConversationItem[] {
-  return [...items].sort((left, right) => (right.lastMessageAt ?? 0) - (left.lastMessageAt ?? 0));
-}
-
-function buildFilePayload(file: FileInfo): string {
-  return JSON.stringify({
-    fileId: file.fileId,
-    fileName: file.fileName,
-    mimeType: file.mimeType,
-    fileSize: file.fileSize,
-    accessUrl: file.accessUrl,
-    downloadUrl: file.downloadUrl
-  });
-}
-
-function parseFilePayload(payload: string): {
-  fileName?: string;
-  accessUrl?: string;
-  downloadUrl?: string;
-  fileSize?: number;
-  mimeType?: string;
-} | null {
-  try {
-    const parsed = JSON.parse(payload) as {
-      fileName?: string;
-      accessUrl?: string;
-      downloadUrl?: string;
-      fileSize?: number;
-      mimeType?: string;
-    };
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-function resolveFileMessageType(mimeType?: string): "image" | "file" {
-  return mimeType?.startsWith("image/") ? "image" : "file";
-}
-
-function formatFileSubtitle(payload: { fileSize?: number } | null, previewableImage: boolean): string {
-  const size = formatFileSize(payload?.fileSize);
-  if (previewableImage) {
-    return size ? `${size} · 点击图片可预览或下载` : "点击图片可预览或下载";
-  }
-  return size ? `${size} · 点击可下载` : "点击可下载";
-}
-
-function formatFileSize(fileSize?: number): string {
-  if (!fileSize || fileSize <= 0) {
-    return "";
-  }
-  if (fileSize < 1024) {
-    return `${fileSize} B`;
-  }
-  if (fileSize < 1024 * 1024) {
-    return `${(fileSize / 1024).toFixed(1)} KB`;
-  }
-  return `${(fileSize / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function extractTextPayload(payload: string): string {
-  return payload;
-}
-
-function removeMessage(messages: Record<string, ChatMessage[]>, target: ChatMessage): Record<string, ChatMessage[]> {
-  return {
-    ...messages,
-    [target.conversationId]: (messages[target.conversationId] ?? []).filter((item) => item.messageId !== target.messageId)
-  };
-}
-
-function getAvatarLabel(value: string): string {
-  return value.trim().slice(0, 1).toUpperCase() || "匿";
-}
-
-function formatWeekdayShort(date: Date): string {
-  return `周${"日一二三四五六"[date.getDay()]}`;
-}
-
-function formatMessageTime(timestamp: number): string {
-  const date = new Date(timestamp);
-  const now = new Date();
-  const sameDay = date.toDateString() === now.toDateString();
-  if (sameDay) {
-    return new Intl.DateTimeFormat("zh-CN", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false
-    }).format(date);
-  }
-  const yesterday = new Date(now);
-  yesterday.setDate(now.getDate() - 1);
-  if (date.toDateString() === yesterday.toDateString()) {
-    return "昨天";
-  }
-  return formatWeekdayShort(date);
-}
-
-function formatConversationDivider(timestamp: number): string {
-  return `今天 ${new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(timestamp))}`;
-}
-
-function formatRecentAdded(timestamp: number): string {
-  const date = new Date(timestamp);
-  const now = new Date();
-  if (date.toDateString() === now.toDateString()) {
-    return `今天 ${new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(date)}`;
-  }
-  return `昨天 ${new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(date)}`;
-}
-
-function matchesMessageSearch(message: ChatMessage, keyword: string): boolean {
-  const normalizedKeyword = keyword.trim().toLowerCase();
-  if (!normalizedKeyword) {
-    return true;
-  }
-  if (message.messageType === "text") {
-    return extractTextPayload(message.payload).toLowerCase().includes(normalizedKeyword);
-  }
-  const filePayload = parseFilePayload(message.payload);
-  return [filePayload?.fileName, filePayload?.mimeType, filePayload?.downloadUrl, filePayload?.accessUrl]
-    .filter((value): value is string => Boolean(value))
-    .some((value) => value.toLowerCase().includes(normalizedKeyword));
 }
