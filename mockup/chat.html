@@ -11,12 +11,15 @@
     <aside class="sidebar">
       <div class="sidebar-inner">
         <div class="wechat-header">
-          <div class="topbar" style="margin-bottom:12px;">
-            <div class="title" style="font-size:22px;">聊天</div>
+          <div class="topbar" style="margin-bottom: 12px;">
+            <div>
+              <div class="title" style="font-size: 28px;">会话</div>
+              <div class="muted">本地缓存加密 · 历史消息需 PIN 解锁</div>
+            </div>
             <a class="tag" href="add-friend.html">添加好友</a>
           </div>
           <div class="search-box">
-            <span>🔍</span>
+            <span>🔎</span>
             <input placeholder="搜索聊天记录" />
           </div>
         </div>
@@ -25,15 +28,21 @@
           <li class="chat-item active">
             <div class="avatar">林</div>
             <div class="chat-main">
-              <div class="chat-row"><div class="name">林夏</div><div class="time">09:42</div></div>
-              <div class="preview">[文件消息]</div>
+              <div class="chat-row">
+                <div class="name">林夏</div>
+                <div class="time">09:42</div>
+              </div>
+              <div class="preview">你发来的文件我已经收到，今晚前给你第一轮反馈。</div>
             </div>
           </li>
           <li class="chat-item">
-            <div class="avatar" style="background:linear-gradient(135deg,#f9a8d4,#a78bfa);">周</div>
+            <div class="avatar" style="background: linear-gradient(135deg, #9e5de0, #ee89a5);">周</div>
             <div class="chat-main">
-              <div class="chat-row"><div class="name">周言</div><div class="time">昨天</div></div>
-              <div class="preview">[图片消息]</div>
+              <div class="chat-row">
+                <div class="name">周言</div>
+                <div class="time">昨天</div>
+              </div>
+              <div class="preview">图片我稍后重发一版，手机上看会更准一些。</div>
             </div>
           </li>
         </ul>
@@ -43,10 +52,13 @@
     <main class="conv-area">
       <div class="panel-header">
         <div>
-          <div class="name" style="font-size:18px;">林夏</div>
-          <div class="muted">工作日 09:00 - 22:00 活跃</div>
+          <div class="name" style="font-size: 20px;">林夏</div>
+          <div class="muted">工作日 09:00 - 22:00 活跃 · 文件消息可直接进入详情流</div>
         </div>
-        <div class="tag">支持发送文件</div>
+        <div class="panel-header-actions">
+          <span class="tag">支持文本 / 图片 / 文件</span>
+          <a class="btn ghost" href="chat-list.html">返回列表</a>
+        </div>
       </div>
 
       <div class="messages">
@@ -54,24 +66,32 @@
 
         <div class="msg other">
           <div class="avatar small">林</div>
-          <div class="bubble">我把你要的版本整理好了，先发你一个 PDF。</div>
+          <div class="bubble">我把你要的版本整理好了，先发你一个 PDF。这个页面我顺手按你说的方向做了更产品化的布局。</div>
         </div>
 
         <div class="msg other">
           <div class="avatar small">林</div>
           <div class="file-card">
-            <div style="font-weight:600; margin-bottom:6px;">项目草稿-v3.pdf</div>
-            <div class="preview">2.4 MB · 点击可预览或下载</div>
+            <div class="name">项目草稿-v3.pdf</div>
+            <div class="preview multiline">2.4 MB · 已完成上传回调 · 可在已授权设备预览与下载</div>
+            <div class="file-meta">
+              <span>文件消息</span>
+              <span>今天 09:22</span>
+            </div>
           </div>
         </div>
 
         <div class="msg self">
-          <div class="bubble">收到，我这边先看一下，等会把修改意见发给你。</div>
+          <div class="bubble">收到。我先确认视觉层级和移动端压缩后的表现，晚一点把修改意见发你。</div>
         </div>
 
         <div class="msg other">
           <div class="avatar small">林</div>
-          <div class="bubble">好，不着急。你看完直接在这里发我就行。</div>
+          <div class="bubble">好，聊天列表那边我也想让它更像真实工作台，不只是单纯一列会话。</div>
+        </div>
+
+        <div class="msg self">
+          <div class="bubble">已经往那个方向做了。伪装页和聊天页之间的视觉落差现在更明确，但仍然保持同一套品牌气质。</div>
         </div>
       </div>
 
@@ -83,7 +103,7 @@
           <button class="icon-btn" title="更多">＋</button>
         </div>
         <div class="composer">
-          <textarea placeholder="输入消息..."></textarea>
+          <textarea placeholder="输入消息，Enter 发送，历史内容仍受本地 PIN 锁保护..."></textarea>
           <button class="btn btn-brand send-btn">发送</button>
         </div>
       </div>

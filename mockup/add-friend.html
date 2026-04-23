@@ -11,17 +11,36 @@
     <div class="topbar">
       <div>
         <div class="title">搜索 / 添加好友</div>
-        <div class="muted">支持昵称、用户 ID 搜索</div>
+        <div class="muted">支持昵称、用户 ID 搜索；结果页保留隐私感，不暴露历史消息明文</div>
       </div>
-      <a class="btn ghost" href="chat-list.html">返回聊天</a>
+      <div class="cta-row">
+        <a class="btn ghost" href="fortune.html">返回伪装页</a>
+        <a class="btn ghost" href="chat-list.html">返回聊天</a>
+      </div>
     </div>
 
     <div class="search-layout">
-      <section class="card result-card">
-        <div class="search-box" style="margin-bottom:16px;">
+      <section class="result-card">
+        <div class="search-intro-card">
+          <div class="section-head">
+            <span class="pill">联系人搜索</span>
+            <span class="tag">创建 1V1 会话</span>
+          </div>
+          <h2 class="section-title">让“加好友”也像一个完整模块，而不是单个表单。</h2>
+          <p class="section-text">
+            页面左侧负责搜索与添加动作，右侧负责最近联系人和使用提醒。这样在桌面上更像真实业务页，
+            到移动端也能自然折叠成顺序阅读。
+          </p>
+        </div>
+
+        <div class="search-box search-box-action">
           <span>🔎</span>
           <input placeholder="输入昵称或用户 ID" />
           <button class="btn btn-brand">搜索</button>
+        </div>
+
+        <div class="inline-fields">
+          <input placeholder="备注名（可选）" />
         </div>
 
         <div class="section-title">搜索结果</div>
@@ -31,52 +50,70 @@
           <div class="user-meta">
             <div class="name">林夏</div>
             <div class="preview">ID: hide_1077</div>
+            <div class="contact-note">允许创建 1V1 会话 · 最近在线 2 小时前</div>
           </div>
           <button class="btn btn-brand">添加</button>
         </div>
 
         <div class="user-row">
-          <div class="avatar" style="background:linear-gradient(135deg,#f9a8d4,#a78bfa);">周</div>
+          <div class="avatar" style="background: linear-gradient(135deg, #9e5de0, #ee89a5);">周</div>
           <div class="user-meta">
             <div class="name">周言</div>
             <div class="preview">ID: hide_2361</div>
+            <div class="contact-note">已在联系人列表中 · 可直接进入聊天</div>
           </div>
           <button class="btn ghost">已添加</button>
         </div>
 
         <div class="user-row">
-          <div class="avatar" style="background:linear-gradient(135deg,#f59e0b,#ef4444);">唐</div>
+          <div class="avatar" style="background: linear-gradient(135deg, #d27234, #f0b45d);">唐</div>
           <div class="user-meta">
             <div class="name">唐果</div>
             <div class="preview">ID: hide_3204</div>
+            <div class="contact-note">支持发送文件 · 建议备注后再添加</div>
           </div>
           <button class="btn btn-brand">添加</button>
         </div>
       </section>
 
-      <aside class="card result-card">
-        <div class="section-title">最近添加</div>
-        <div class="advice-list">
-          <div class="advice-item">
-            <div class="avatar small">M</div>
-            <div>
-              <div class="name">Mia</div>
-              <div class="preview">今天 09:10 已添加</div>
+      <aside class="grid">
+        <section class="result-card">
+          <div class="section-title">最近添加</div>
+          <div class="advice-list">
+            <div class="advice-item">
+              <div class="avatar small">M</div>
+              <div>
+                <div class="name">Mia</div>
+                <div class="preview">今天 09:10 已添加</div>
+              </div>
+            </div>
+            <div class="advice-item">
+              <div class="avatar small" style="background: linear-gradient(135deg, #2a8d76, #70c5ac);">郑</div>
+              <div>
+                <div class="name">郑一</div>
+                <div class="preview">昨天 21:34 已添加</div>
+              </div>
             </div>
           </div>
-          <div class="advice-item">
-            <div class="avatar small" style="background:linear-gradient(135deg,#f472b6,#22c55e);">郑</div>
-            <div>
-              <div class="name">郑一</div>
-              <div class="preview">昨天 21:34 已添加</div>
-            </div>
-          </div>
-        </div>
+        </section>
 
-        <div class="section-title" style="margin-top:18px;">提示</div>
-        <div class="section-text">
-          页面风格保持简洁，桌面端采用双栏布局，手机端自动折叠为单列，适合快速搜索和添加联系人。
-        </div>
+        <section class="result-card">
+          <div class="section-title">设计提醒</div>
+          <div class="detail-list">
+            <div class="detail-item">
+              <strong>隐私约束</strong>
+              <div class="section-text">搜索页不显示聊天正文、不展示消息缓存入口，只保留联系人维度信息。</div>
+            </div>
+            <div class="detail-item">
+              <strong>主链路位置</strong>
+              <div class="section-text">添加成功后应进入联系人关系与会话创建流程，不在页面中直接绕开主链路。</div>
+            </div>
+            <div class="detail-item">
+              <strong>移动端适配</strong>
+              <div class="section-text">双栏在小屏下顺序折叠，顶部按钮和搜索行为仍可单手触达。</div>
+            </div>
+          </div>
+        </section>
       </aside>
     </div>
   </div>

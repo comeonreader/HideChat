@@ -11,13 +11,32 @@
     <aside class="sidebar">
       <div class="sidebar-inner">
         <div class="wechat-header">
-          <div class="topbar" style="margin-bottom:12px;">
-            <div class="title" style="font-size:22px;">聊天</div>
-            <a class="tag" href="add-friend.html">搜索 / 添加好友</a>
+          <div class="topbar" style="margin-bottom: 12px;">
+            <div>
+              <div class="title" style="font-size: 28px;">HideChat</div>
+              <div class="muted">隐私聊天 · 仅展示脱敏预览</div>
+            </div>
+            <a class="tag" href="add-friend.html">添加好友</a>
           </div>
+
           <div class="search-box">
-            <span>🔍</span>
-            <input placeholder="搜索" />
+            <span>🔎</span>
+            <input placeholder="搜索会话 / 联系人" />
+          </div>
+
+          <div class="sidebar-stats">
+            <div class="sidebar-stat">
+              <strong>12</strong>
+              <span>最近会话</span>
+            </div>
+            <div class="sidebar-stat">
+              <strong>3</strong>
+              <span>未读对话</span>
+            </div>
+            <div class="sidebar-stat">
+              <strong>已锁定</strong>
+              <span>历史缓存</span>
+            </div>
           </div>
         </div>
 
@@ -25,54 +44,125 @@
           <li class="chat-item active">
             <div class="avatar">林</div>
             <div class="chat-main">
-              <div class="chat-row"><div class="name">林夏</div><div class="time">09:42</div></div>
-              <div class="preview">[文件消息]</div>
+              <div class="chat-row">
+                <div class="name">林夏</div>
+                <div class="time">09:42</div>
+              </div>
+              <div class="preview">你发来的文件我已经收到，今晚前给你第一轮反馈。</div>
             </div>
             <span class="count">2</span>
           </li>
           <li class="chat-item">
-            <div class="avatar" style="background:linear-gradient(135deg,#f9a8d4,#a78bfa);">周</div>
+            <div class="avatar" style="background: linear-gradient(135deg, #9e5de0, #ee89a5);">周</div>
             <div class="chat-main">
-              <div class="chat-row"><div class="name">周言</div><div class="time">昨天</div></div>
-              <div class="preview">[文本消息]</div>
+              <div class="chat-row">
+                <div class="name">周言</div>
+                <div class="time">昨天</div>
+              </div>
+              <div class="preview">周五前定一下碰面时间，我这边都可以配合。</div>
             </div>
           </li>
           <li class="chat-item">
-            <div class="avatar" style="background:linear-gradient(135deg,#fb7185,#f59e0b);">M</div>
+            <div class="avatar" style="background: linear-gradient(135deg, #3478c1, #42b6c9);">M</div>
             <div class="chat-main">
-              <div class="chat-row"><div class="name">Mia</div><div class="time">昨天</div></div>
-              <div class="preview">[文本消息]</div>
+              <div class="chat-row">
+                <div class="name">Mia</div>
+                <div class="time">昨天</div>
+              </div>
+              <div class="preview">新图我已经传上去了，等你确认色调版本。</div>
             </div>
           </li>
           <li class="chat-item">
-            <div class="avatar" style="background:linear-gradient(135deg,#60a5fa,#06b6d4);">郑</div>
+            <div class="avatar" style="background: linear-gradient(135deg, #d27234, #f0b45d);">郑</div>
             <div class="chat-main">
-              <div class="chat-row"><div class="name">郑一</div><div class="time">周二</div></div>
-              <div class="preview">[文本消息]</div>
+              <div class="chat-row">
+                <div class="name">郑一</div>
+                <div class="time">周二</div>
+              </div>
+              <div class="preview">已帮你创建 1V1 会话，后续直接从这里进入。</div>
+            </div>
+          </li>
+          <li class="chat-item">
+            <div class="avatar" style="background: linear-gradient(135deg, #2a8d76, #70c5ac);">唐</div>
+            <div class="chat-main">
+              <div class="chat-row">
+                <div class="name">唐果</div>
+                <div class="time">周一</div>
+              </div>
+              <div class="preview">图片消息已同步，本地历史需要 PIN 解锁后查看。</div>
             </div>
           </li>
         </ul>
+
+        <nav class="mobile-nav">
+          <a class="active" href="chat-list.html">💬<span>聊天</span></a>
+          <a href="add-friend.html">👤<span>好友</span></a>
+          <a href="fortune.html">✨<span>运势</span></a>
+        </nav>
       </div>
-      <nav class="mobile-nav">
-        <a href="chat-list.html">💬<span>聊天</span></a>
-        <a href="add-friend.html">👤<span>好友</span></a>
-        <a href="fortune.html">✨<span>运势</span></a>
-      </nav>
     </aside>
 
     <main class="main-panel">
       <div class="panel-header">
         <div>
-          <div class="name" style="font-size:18px;">林夏</div>
-          <div class="muted">手机在线 · 2 条未读</div>
+          <div class="name" style="font-size: 20px;">林夏</div>
+          <div class="muted">手机在线 · 2 条未读 · 最近一次同步 09:42</div>
         </div>
-        <a class="btn ghost" href="chat.html">进入聊天</a>
+        <div class="panel-header-actions">
+          <span class="tag">1V1 会话</span>
+          <a class="btn ghost" href="fortune.html">返回伪装页</a>
+          <a class="btn btn-brand" href="chat.html">进入聊天</a>
+        </div>
       </div>
+
       <div class="empty-panel">
         <div class="empty-card">
           <div class="empty-illustration"></div>
-          <div class="section-title">像微信一样熟悉的聊天列表</div>
-          <div class="section-text">左侧展示最近会话与未读消息，手机端会自动切换为单列布局，更适合拇指操作。</div>
+          <div class="desktop-overview">
+            <section>
+              <h2 class="section-title">更像正式产品，而不是占位稿</h2>
+              <p class="section-text">
+                会话列表页改成更高信息密度的桌面工作区：左侧固定最近会话与搜索，
+                右侧展示选中会话摘要、未读状态和入口按钮。移动端则自动折叠为单列布局。
+              </p>
+
+              <div class="overview-grid" style="margin-top: 18px;">
+                <div class="overview-card">
+                  <div class="metric-label">预览策略</div>
+                  <div class="metric-value">脱敏但真实</div>
+                  <div class="metric-note">既要像真实聊天，又不能暴露敏感数据。</div>
+                </div>
+                <div class="overview-card">
+                  <div class="metric-label">状态表达</div>
+                  <div class="metric-value">弱提示</div>
+                  <div class="metric-note">在线、未读、锁定都保留，但不刺眼。</div>
+                </div>
+                <div class="overview-card">
+                  <div class="metric-label">目标场景</div>
+                  <div class="metric-value">桌面 + 手机</div>
+                  <div class="metric-note">同一套视觉能平稳过渡到移动布局。</div>
+                </div>
+              </div>
+            </section>
+
+            <aside class="chat-detail-card">
+              <div class="section-title">当前选中会话</div>
+              <div class="detail-list">
+                <div class="detail-item">
+                  <strong>联系人</strong>
+                  <div class="section-text">林夏 · 备注保持关闭，仅在受控视图显示。</div>
+                </div>
+                <div class="detail-item">
+                  <strong>会话能力</strong>
+                  <div class="section-text">文本、图片、文件消息均已支持，历史记录默认受 PIN 保护。</div>
+                </div>
+                <div class="detail-item">
+                  <strong>主链路入口</strong>
+                  <div class="section-text">从伪装页进入后落到这里，再进入具体聊天页。</div>
+                </div>
+              </div>
+            </aside>
+          </div>
         </div>
       </div>
     </main>

@@ -11,76 +11,144 @@
     <div class="topbar">
       <div>
         <div class="title">今日运势</div>
-        <div class="muted">星期四 · 适合轻装上阵</div>
+        <div class="muted">星期四 · 适合减法沟通，也适合留一点私密空间给自己</div>
       </div>
-      <span class="tag">好运指数 86%</span>
+      <div class="badge-row">
+        <span class="tag">好运指数 86%</span>
+        <span class="pill">傍晚前状态最佳</span>
+      </div>
     </div>
 
-    <div class="grid">
-      <section class="card fortune-hero">
-        <div class="section-title">整体走向</div>
-        <div class="section-text">
-          今天的节奏偏平稳，适合把注意力放在真正重要的人和事上。情绪容易受到细节影响，
-          但只要稍微放慢速度，就能重新找回掌控感。
-        </div>
-        <div class="fortune-stats">
-          <div class="stat">
-            <div class="label">幸运色</div>
-            <div class="value">青绿色</div>
+    <div class="fortune-layout">
+      <section class="grid">
+        <section class="fortune-hero">
+          <div class="section-head">
+            <span class="pill">整体走向</span>
+            <span class="tag">适合稳定推进</span>
           </div>
-          <div class="stat">
-            <div class="label">幸运数字</div>
-            <div class="value" id="luckyNumberValue">--</div>
+          <h2 class="section-title">今天会更偏向“收束”，不是“扩张”。</h2>
+          <p class="section-text">
+            你会更清楚地知道谁值得回应、哪些信息不必公开表达。整体节奏不快，
+            但判断会更准。把注意力留给真正重要的人和事，今天反而更容易获得确定感。
+          </p>
+
+          <div class="fortune-stats">
+            <div class="stat">
+              <div class="label">幸运色</div>
+              <div class="value">陶土橙</div>
+            </div>
+            <div class="stat">
+              <div class="label">幸运数字</div>
+              <div class="value" id="luckyNumberValue">--</div>
+            </div>
+            <div class="stat">
+              <div class="label">宜做</div>
+              <div class="value">沟通 / 整理</div>
+            </div>
+            <div class="stat">
+              <div class="label">不宜</div>
+              <div class="value">过度解释</div>
+            </div>
           </div>
-          <div class="stat">
-            <div class="label">宜做</div>
-            <div class="value">沟通 / 整理</div>
+        </section>
+
+        <section class="card">
+          <div class="section-title">今日建议</div>
+          <div class="advice-list">
+            <div class="advice-item">
+              <div class="icon-dot">1</div>
+              <div>
+                <div class="name">先回应最重要的人</div>
+                <div class="section-text">减少并行对话，把注意力集中在一两条最关键的沟通链路上。</div>
+              </div>
+            </div>
+            <div class="advice-item">
+              <div class="icon-dot">2</div>
+              <div>
+                <div class="name">表达可以更短一些</div>
+                <div class="section-text">今天适合简洁、干净的表达方式，保留边界比解释一切更有效。</div>
+              </div>
+            </div>
+            <div class="advice-item">
+              <div class="icon-dot">3</div>
+              <div>
+                <div class="name">给自己预留隐藏空间</div>
+                <div class="section-text">把情绪和对话留在可控范围内，会比试图让所有人都理解你更轻松。</div>
+              </div>
+            </div>
           </div>
-        </div>
+        </section>
+
+        <section class="card">
+          <div class="section-title">情绪提醒</div>
+          <p class="section-text">
+            今天容易在下午四点后出现轻微疲惫，尤其在高密度聊天和工作切换之后。
+            如果要处理重要对话，建议放在午后到傍晚前；如果已经感到被打扰，直接收紧回应范围会更合适。
+          </p>
+        </section>
       </section>
 
-      <section class="card" style="padding:20px;">
-        <div class="section-title">今日建议</div>
-        <div class="advice-list">
-          <div class="advice-item">
-            <div class="icon-dot">1</div>
-            <div>
-              <div style="font-weight:600; margin-bottom:4px;">先处理最重要的事</div>
-              <div class="section-text">把精力留给真正值得的人和对话，减少被噪音打断。</div>
+      <aside class="grid">
+        <section class="fortune-brief">
+          <div class="section-title">今日摘要</div>
+          <div class="overview-grid">
+            <div class="overview-card">
+              <div class="metric-label">关系运</div>
+              <div class="metric-value">82</div>
+              <div class="metric-note">适合一对一深聊，不适合嘈杂场景。</div>
+            </div>
+            <div class="overview-card">
+              <div class="metric-label">行动力</div>
+              <div class="metric-value">74</div>
+              <div class="metric-note">稳，不快，但执行会比想象顺。</div>
+            </div>
+            <div class="overview-card">
+              <div class="metric-label">保密感</div>
+              <div class="metric-value">91</div>
+              <div class="metric-note">今天更需要边界和私密节奏。</div>
             </div>
           </div>
-          <div class="advice-item">
-            <div class="icon-dot">2</div>
-            <div>
-              <div style="font-weight:600; margin-bottom:4px;">表达尽量简单清楚</div>
-              <div class="section-text">今天适合坦率沟通，越简洁，越容易被理解。</div>
-            </div>
-          </div>
-          <div class="advice-item">
-            <div class="icon-dot">3</div>
-            <div>
-              <div style="font-weight:600; margin-bottom:4px;">别急着证明自己</div>
-              <div class="section-text">稳住节奏，比着急解释更有效，也更容易带来好运。</div>
-            </div>
-          </div>
-        </div>
-      </section>
+        </section>
 
-      <section class="card" style="padding:20px;">
-        <div class="section-title">情绪提醒</div>
-        <div class="section-text">
-          今天容易在傍晚时分感到疲惫，适合早一点结束无效社交，给自己保留一些安静空间。
-          如果有重要沟通，建议在午后进行，状态会更自然。
-        </div>
-      </section>
+        <section class="card">
+          <div class="section-title">节奏观察</div>
+          <div class="advice-list">
+            <div class="activity-card">
+              <div class="metric-label">09:00 - 12:00</div>
+              <div class="metric-value">适合处理明确任务</div>
+              <div class="metric-note">不拖延，不展开额外讨论。</div>
+            </div>
+            <div class="activity-card">
+              <div class="metric-label">13:30 - 17:30</div>
+              <div class="metric-value">适合重要沟通</div>
+              <div class="metric-note">表达会更自然，也更容易被理解。</div>
+            </div>
+            <div class="activity-card">
+              <div class="metric-label">18:00 之后</div>
+              <div class="metric-value">适合收拢社交</div>
+              <div class="metric-note">把聊天范围留给最值得回应的人。</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="section-title">伪装页设计意图</div>
+          <p class="section-text">
+            这个页面需要单独成立，因此即使没有触发入口，也仍然像一个正常的内容产品：
+            有情绪建议、节奏说明、视觉主题和可浏览信息，不让用户在视觉上直接联想到聊天系统。
+          </p>
+        </section>
+      </aside>
     </div>
 
     <div class="bottom-cta">
       <div class="cta-row">
-        <a class="btn btn-brand" href="lucky-number.html" style="flex:1; text-align:center;">返回首页</a>
+        <a class="btn ghost" href="lucky-number.html">返回幸运数字</a>
+        <a class="btn btn-brand" href="chat-list.html">预览聊天系统</a>
       </div>
     </div>
   </div>
+
   <script>
     const params = new URLSearchParams(window.location.search);
     const luckyNumber = params.get("luckyNumber") || "13";

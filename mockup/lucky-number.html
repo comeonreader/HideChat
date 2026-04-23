@@ -9,29 +9,110 @@
 <body class="app-bg">
   <div class="center-wrap">
     <div class="hero-card">
-      <div class="hero-top">
-        <span class="badge">Daily Mood</span>
-        <span class="badge">Sunrise 06:18</span>
-      </div>
-      <h1 class="hero-title">把心安顿好，<br>好运自然会靠近。</h1>
-      <p class="hero-sub">
-        今天也值得被认真对待。慢一点、稳一点，给自己一份柔和的期待。
-      </p>
+      <div class="hero-layout">
+        <section class="hero-panel">
+          <div class="eyebrow-row">
+            <span class="badge">Disguise Entry</span>
+            <span class="badge">今日只触发一次</span>
+            <span class="badge">建议输入 4 位数字</span>
+          </div>
 
-      <form class="input-box" id="luckyNumberForm">
-        <input type="password" id="luckyNumberInput" name="code" placeholder="请输入今日幸运数字" aria-label="请输入今日幸运数字" />
-        <button class="btn btn-primary" id="submitButton" type="submit">进入</button>
-      </form>
-      <p class="hero-sub" id="statusText" style="margin-top:14px; min-height:24px;">
-        输入后将通过后端接口校验，再决定进入隐藏入口或继续浏览运势内容。
-      </p>
+          <h1 class="hero-title">把日常藏进运势，<br />把真正的入口留给直觉。</h1>
+          <p class="hero-sub">
+            这是 HideChat 的伪装入口高保真原型。默认视角是一页温和的每日运势，
+            输入正确幸运数字后，才会静默进入私密聊天系统。
+          </p>
 
-      <div class="hero-footer">
-        <span>今日关键词：放松、行动、耐心</span>
-        <span>周四</span>
+          <div class="hero-meta-grid">
+            <div class="mini-card">
+              <div class="label">今日主题</div>
+              <div class="value">慢下来</div>
+              <div class="helper">页面气质偏温暖、克制，避免明显“安全产品”感。</div>
+            </div>
+            <div class="mini-card">
+              <div class="label">伪装强度</div>
+              <div class="value">高</div>
+              <div class="helper">进入前所有文案都保持生活方式内容语气。</div>
+            </div>
+            <div class="mini-card">
+              <div class="label">当前校验</div>
+              <div class="value">后端验证</div>
+              <div class="helper">原型仍保留 mock 逻辑，方便直接浏览流程。</div>
+            </div>
+          </div>
+
+          <form class="input-box" id="luckyNumberForm">
+            <input
+              type="password"
+              id="luckyNumberInput"
+              name="code"
+              placeholder="· · · ·"
+              aria-label="请输入今日幸运数字"
+              inputmode="numeric"
+              autocomplete="off"
+            />
+            <button class="btn btn-primary" id="submitButton" type="submit">触发入口</button>
+          </form>
+
+          <div class="hero-actions">
+            <a class="btn subtle" href="fortune.html">先看今日运势</a>
+            <a class="btn subtle" href="chat-list.html">直接预览聊天原型</a>
+          </div>
+
+          <div class="status-strip" id="statusText">
+            输入后将走幸运数字校验。命中时进入隐藏聊天，不命中则继续展示普通运势内容。
+          </div>
+        </section>
+
+        <aside class="hero-side">
+          <section class="hero-side-card">
+            <div class="section-head">
+              <span class="pill">今日线索</span>
+              <span class="chip">Thursday</span>
+            </div>
+            <h2 class="section-title">它看起来只是一个运势页</h2>
+            <p class="section-text">
+              右侧内容强化“正常产品”感：有建议、有节奏提示、有情绪观察。
+              真正入口只藏在数字触发行为里，不在 UI 上主动暴露。
+            </p>
+            <ul class="list-plain" style="margin-top: 16px;">
+              <li>
+                <strong>关键词</strong>
+                <div class="helper">安静、耐心、留白、只对重要的人打开。</div>
+              </li>
+              <li>
+                <strong>适合的氛围</strong>
+                <div class="helper">暖色玻璃质感，像一本日常手账，不像传统即时通讯登录页。</div>
+              </li>
+              <li>
+                <strong>进入后的落差</strong>
+                <div class="helper">前台柔和，后台利落，形成明显但合理的“伪装到真实”切换。</div>
+              </li>
+            </ul>
+          </section>
+
+          <section class="hero-side-card">
+            <div class="section-title">原型检查点</div>
+            <ul class="timeline">
+              <li>
+                <strong>1. 伪装入口</strong>
+                <div class="helper">有完整品牌感，不是单薄登录框。</div>
+              </li>
+              <li>
+                <strong>2. 运势内容</strong>
+                <div class="helper">可单独成立，未命中时也能自洽。</div>
+              </li>
+              <li>
+                <strong>3. 聊天系统</strong>
+                <div class="helper">进入后改为更高密度的信息布局，贴近真实聊天产品。</div>
+              </li>
+            </ul>
+          </section>
+        </aside>
       </div>
     </div>
   </div>
+
   <script>
     const form = document.getElementById("luckyNumberForm");
     const input = document.getElementById("luckyNumberInput");
@@ -62,19 +143,18 @@
       }
 
       button.disabled = true;
-      statusText.textContent = "正在通过后端接口校验...";
+      statusText.textContent = "正在校验今日幸运数字...";
 
       try {
-        // 原型页使用 mock 校验；真实接入时替换为 POST /api/system/disguise/verify-lucky-number
         const result = await mockVerifyLuckyNumber(luckyNumber);
 
         if (result.matched) {
-          statusText.textContent = "校验通过，正在进入隐藏入口...";
+          statusText.textContent = "命中今日入口，正在切换到隐藏聊天...";
           window.location.href = "chat-list.html";
           return;
         }
 
-        statusText.textContent = "继续为你展示今日运势...";
+        statusText.textContent = "未命中入口，继续展示今日运势内容。";
         const nextUrl = new URL("fortune.html", window.location.href);
         nextUrl.searchParams.set("luckyNumber", result.luckyNumber);
         window.location.href = nextUrl.toString();
