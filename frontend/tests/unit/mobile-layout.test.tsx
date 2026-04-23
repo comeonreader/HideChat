@@ -129,6 +129,73 @@ describe("mobile layout", () => {
     expect(conversationLayout?.querySelector(".messages--mobile")?.nextElementSibling).toBe(composerContainer);
   });
 
+  it("adds bottom offset to the mobile message list based on the composer height", async () => {
+    const conversation: ConversationItem = {
+      conversationId: "c_1001",
+      peerUid: "u_2001",
+      peerNickname: "Anna",
+      remarkName: "Anna",
+      previewStrategy: "masked",
+      lastMessagePreview: "hello",
+      lastMessageType: "text",
+      lastMessageAt: 1712620800000,
+      unreadCount: 0
+    };
+    const messages: ChatMessage[] = [
+      {
+        messageId: "m_1001",
+        conversationId: "c_1001",
+        senderUid: "u_2001",
+        receiverUid: "u_1001",
+        payload: "hello",
+        messageType: "text",
+        payloadType: "plain",
+        clientMsgTime: 1712620800000,
+        serverMsgTime: 1712620800000,
+        serverStatus: "sent"
+      }
+    ];
+
+    const { container } = render(
+      <MobileConversationDetailPage
+        conversation={conversation}
+        messages={messages}
+        sessionUserUid="u_1001"
+        composer="test"
+        uploadingFile={false}
+        onComposerChange={() => undefined}
+        onSendMessage={() => undefined}
+        onFileSelected={() => undefined}
+        onBack={() => undefined}
+        onLogout={() => undefined}
+        renderMessageBody={(message) => <div className="bubble">{message.payload}</div>}
+        getAvatarLabel={(value) => value.slice(0, 1)}
+        getConversationTitle={(item) => item.remarkName ?? item.peerNickname ?? item.peerUid}
+        formatConversationDivider={() => "今天"}
+      />
+    );
+
+    const composerContainer = container.querySelector(".input-bar--mobile");
+    expect(composerContainer).toBeInTheDocument();
+    vi.spyOn(composerContainer!, "getBoundingClientRect").mockReturnValue({
+      width: 0,
+      height: 116,
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    });
+
+    window.dispatchEvent(new Event("resize"));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("消息列表")).toHaveStyle({ paddingBottom: "calc(20px + 116px)" });
+    });
+  });
+
   it("hides the mobile bottom nav after entering a conversation detail page", async () => {
     const user = userEvent.setup();
     render(<App />);

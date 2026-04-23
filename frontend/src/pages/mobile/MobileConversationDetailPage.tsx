@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { ChatMessage, ConversationItem } from "../../types";
 
 interface MobileConversationDetailPageProps {
@@ -34,6 +34,33 @@ export function MobileConversationDetailPage({
   getConversationTitle,
   formatConversationDivider
 }: MobileConversationDetailPageProps) {
+  const composerRef = useRef<HTMLElement | null>(null);
+  const [composerOffset, setComposerOffset] = useState(0);
+
+  useLayoutEffect(() => {
+    const composerElement = composerRef.current;
+    if (!composerElement) {
+      return;
+    }
+
+    const syncComposerOffset = () => {
+      setComposerOffset(composerElement.getBoundingClientRect().height);
+    };
+
+    syncComposerOffset();
+
+    if (typeof ResizeObserver !== "undefined") {
+      const resizeObserver = new ResizeObserver(() => {
+        syncComposerOffset();
+      });
+      resizeObserver.observe(composerElement);
+      return () => resizeObserver.disconnect();
+    }
+
+    window.addEventListener("resize", syncComposerOffset);
+    return () => window.removeEventListener("resize", syncComposerOffset);
+  }, []);
+
   if (!conversation) {
     return (
       <main className="conv-area conv-area--mobile">
@@ -73,7 +100,11 @@ export function MobileConversationDetailPage({
         </button>
       </header>
 
-      <section className="messages messages--mobile" aria-label="消息列表">
+      <section
+        className="messages messages--mobile"
+        aria-label="消息列表"
+        style={{ paddingBottom: `calc(20px + ${composerOffset}px)` }}
+      >
         {messages.length > 0 && <div className="day-divider">{formatConversationDivider(messages[0].serverMsgTime)}</div>}
         {messages.map((message) => {
           const isSelf = message.senderUid === sessionUserUid;
@@ -91,7 +122,7 @@ export function MobileConversationDetailPage({
         )}
       </section>
 
-      <footer className="input-bar input-bar--mobile">
+      <footer ref={composerRef} className="input-bar input-bar--mobile">
         <div className="toolbar">
           <button className="icon-btn" type="button" title="表情">
             😊
