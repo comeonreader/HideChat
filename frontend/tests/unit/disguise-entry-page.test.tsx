@@ -153,4 +153,17 @@ describe("DisguiseEntryPage", () => {
     expect(await screen.findByText("校验失败，请稍后重试")).toBeInTheDocument();
     expect(screen.getByText("校验服务暂时不可用，请稍后重试。")).toBeInTheDocument();
   });
+
+  it("does not render placeholder copy in the lucky number input", async () => {
+    render(
+      <DisguiseEntryPage
+        onLuckyNumberVerified={vi.fn()}
+        initialView="lucky"
+        compactMode
+      />
+    );
+
+    const input = await screen.findByLabelText("请输入今日幸运数字");
+    expect(input).toHaveAttribute("placeholder", "");
+  });
 });

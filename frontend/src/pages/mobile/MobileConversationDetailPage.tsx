@@ -38,15 +38,13 @@ export function MobileConversationDetailPage({
     return (
       <main className="conv-area conv-area--mobile">
         <div className="panel-header panel-header--mobile-detail">
-          <div className="mobile-detail-header-main">
-            <button className="btn ghost mobile-back-button" type="button" onClick={onBack}>
-              返回列表
-            </button>
-            <div>
-              <div className="name header-name">聊天详情</div>
-              <div className="muted">当前会话不存在或尚未同步</div>
-            </div>
+          <button className="btn ghost mobile-back-button" type="button" onClick={onBack}>
+            返回列表
+          </button>
+          <div className="mobile-detail-title">
+            <div className="name header-name">聊天详情</div>
           </div>
+          <div className="mobile-logout-button" aria-hidden="true" />
         </div>
         <div className="empty-panel">
           <div className="empty-card">
@@ -64,16 +62,13 @@ export function MobileConversationDetailPage({
   return (
     <main className="conv-area conv-area--mobile mobile-conversation-layout">
       <header className="panel-header panel-header--mobile-detail">
-        <div className="mobile-detail-header-main">
-          <button className="btn ghost mobile-back-button" type="button" onClick={onBack}>
-            返回列表
-          </button>
-          <div className="mobile-detail-title">
-            <div className="name header-name">{title}</div>
-            <div className="muted">本地缓存已启用</div>
-          </div>
+        <button className="btn ghost mobile-back-button" type="button" onClick={onBack}>
+          返回列表
+        </button>
+        <div className="mobile-detail-title">
+          <div className="name header-name">{title}</div>
         </div>
-        <button className="btn ghost" type="button" onClick={onLogout}>
+        <button className="btn ghost mobile-logout-button" type="button" onClick={onLogout}>
           退出账号
         </button>
       </header>

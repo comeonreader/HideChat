@@ -41,7 +41,6 @@ export function DesktopConversationPage({
       <div className="panel-header">
         <div>
           <div className="name header-name">{activeConversation ? getConversationTitle(activeConversation) : "选择一个会话"}</div>
-          <div className="muted">工作日 09:00 - 22:00 活跃 · 本地缓存已启用</div>
         </div>
         <div className="panel-header-actions">
           <span className="tag">支持发送文件</span>

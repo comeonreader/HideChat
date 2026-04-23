@@ -43,7 +43,9 @@ describe("app shell integration", () => {
     await screen.findByText("认证成功，已进入聊天。");
     await waitFor(() => expect(screen.getAllByText("Anna").length).toBeGreaterThan(0));
     expect(screen.getByText("历史你好")).toBeInTheDocument();
+    expect(screen.getByLabelText("消息输入框")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "退出账号" })).toBeInTheDocument();
+    expect(screen.queryByText("工作日 09:00 - 22:00 活跃 · 本地缓存已启用")).not.toBeInTheDocument();
   });
 
   it("keeps the mobile shell on conversation list after auth", async () => {

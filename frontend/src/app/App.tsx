@@ -323,13 +323,6 @@ export function App() {
         }
       })
     ) {
-      setStatusText(
-        input.messageType === "image"
-          ? "图片消息已通过 WebSocket 发出。"
-          : input.messageType === "file"
-            ? "文件消息已通过 WebSocket 发出。"
-            : "消息已通过 WebSocket 发出。"
-      );
       return;
     }
 
@@ -470,14 +463,14 @@ export function App() {
 
   async function handleLogout() {
     const refreshToken = session?.tokens?.refreshToken;
-    let nextStatus = "已退出当前账号。";
+    let nextStatus = "已退出账号。";
 
     if (refreshToken) {
       try {
         await logout(refreshToken);
       } catch (error) {
         clearStoredAuthState();
-        nextStatus = error instanceof Error ? `${error.message}，当前设备已完成本地退出。` : "服务端退出失败，当前设备已完成本地退出。";
+        nextStatus = error instanceof Error ? `${error.message}，本地已退出。` : "服务端退出失败，本地已退出。";
       }
     } else {
       clearStoredAuthState();
@@ -544,8 +537,7 @@ export function App() {
   );
 
   useAuthBootstrap({
-    onAuthenticated: hydrateStoredSession,
-    onStatusChange: setStatusText
+    onAuthenticated: hydrateStoredSession
   });
 
   const { closeWebSocket: closeRealtimeConnection, sendRealtimePayload } = useChatRealtime({
@@ -642,7 +634,9 @@ export function App() {
       {screen === "chat" && session && renderChatShell()}
       {statusText ? (
         <div
-          className={screen === "chat" ? "status-strip status-strip--visible" : "status-strip status-strip--top"}
+          className={
+            isMobileViewport || screen === "chat" ? "status-strip status-strip--visible" : "status-strip status-strip--top"
+          }
           role="status"
           aria-live="polite"
         >

@@ -99,10 +99,34 @@ describe("mobile layout", () => {
 
     expect(container.querySelector(".mobile-conversation-layout")).toBeInTheDocument();
     expect(container.querySelector(".panel-header--mobile-detail")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "返回列表" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "退出账号" })).toBeInTheDocument();
+    expect(screen.getByText("Anna")).toBeInTheDocument();
+    expect(screen.queryByText("本地缓存已启用")).not.toBeInTheDocument();
     const messageRegion = screen.getByLabelText("消息列表");
     expect(within(messageRegion).getByText("hello")).toBeInTheDocument();
     expect(container.querySelector(".input-bar--mobile")).toBeInTheDocument();
     expect(screen.getByLabelText("消息输入框")).toHaveValue("test");
+  });
+
+  it("keeps the mobile composer as the bottom section of the conversation layout", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await screen.findByRole("button", { name: "查看彩蛋" });
+    await user.type(screen.getByLabelText("请输入今日幸运数字"), "2468");
+    await user.click(screen.getByRole("button", { name: "查看彩蛋" }));
+    await screen.findByText("隐藏入口验证");
+    await user.click(screen.getByRole("button", { name: "使用当前信息进入" }));
+    await waitFor(() => expect(screen.getByRole("navigation", { name: "手机端底部导航" })).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: /Anna/ }));
+
+    const composerBar = await screen.findByText("发送");
+    const composerContainer = composerBar.closest(".input-bar--mobile");
+    expect(composerContainer).toBeInTheDocument();
+    const conversationLayout = composerContainer?.closest(".mobile-conversation-layout");
+    expect(conversationLayout?.lastElementChild).toBe(composerContainer);
+    expect(conversationLayout?.querySelector(".messages--mobile")?.nextElementSibling).toBe(composerContainer);
   });
 
   it("hides the mobile bottom nav after entering a conversation detail page", async () => {

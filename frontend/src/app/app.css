@@ -441,12 +441,14 @@ img {
 .chat-shell {
   display: grid;
   grid-template-columns: 320px 1fr;
-  min-height: 100dvh;
+  min-height: 0;
+  height: 100%;
 }
 
 .chat-page {
   background: #f3f4f6;
-  min-height: 100dvh;
+  min-height: 0;
+  height: 100%;
 }
 
 .chat-page--mobile {
@@ -471,6 +473,7 @@ img {
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 .sidebar-inner {
@@ -478,6 +481,8 @@ img {
   margin: 0 auto;
   width: 100%;
   gap: 0;
+  min-height: 0;
+  height: 100%;
 }
 
 .wechat-header {
@@ -543,6 +548,13 @@ img {
   min-width: 0;
 }
 
+.chat-main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+
 .chat-main--empty {
   padding: 16px;
 }
@@ -563,7 +575,7 @@ img {
 }
 
 .preview {
-  margin-top: 6px;
+  margin-top: 0;
   font-size: 13px;
   white-space: nowrap;
   overflow: hidden;
@@ -587,7 +599,8 @@ img {
 .conv-area {
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
+  min-height: 0;
+  height: 100%;
 }
 
 .main-panel--mobile-page,
@@ -762,8 +775,11 @@ img {
 }
 
 .input-bar--mobile {
-  position: relative;
+  position: sticky;
+  bottom: 0;
   z-index: 2;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  background: #f7f7f7;
 }
 
 .toolbar {
@@ -857,28 +873,31 @@ img {
   backdrop-filter: blur(12px);
 }
 
-.mobile-detail-header-main {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 1;
-  min-width: 0;
-}
-
 .mobile-back-button {
   white-space: nowrap;
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 1;
 }
 
 .mobile-detail-title {
   flex: 1;
   min-width: 0;
+  text-align: center;
+  pointer-events: none;
 }
 
-.mobile-detail-title .header-name,
-.mobile-detail-title .muted {
+.mobile-detail-title .header-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.mobile-logout-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  position: relative;
+  z-index: 1;
 }
 
 .mobile-fortune-page {
@@ -949,6 +968,7 @@ img {
 .mobile-conversation-layout {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 100%;
 }
 
 .main-panel--mobile-page > .mobile-page-header .panel-header,

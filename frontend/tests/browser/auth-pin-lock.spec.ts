@@ -22,7 +22,7 @@ test("支持注册后直接进入聊天，并在刷新后无需 PIN 恢复使用
   await expect(page.getByText("像微信一样熟悉的聊天列表")).toBeVisible();
 
   await page.reload();
-  await expect(page.getByText("检测到本地登录态，输入幸运数字后可直接进入聊天。")).toBeVisible();
+  await expect(page.getByRole("status")).toHaveCount(0);
   await submitLuckyNumber(page, "2468");
   await expect(page.getByRole("button", { name: /搜索 \/ 添加好友|添加好友/ })).toBeVisible();
   await expect(page.getByText("像微信一样熟悉的聊天列表")).toBeVisible();

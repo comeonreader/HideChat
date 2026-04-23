@@ -84,7 +84,7 @@ export function ChatShell(props: ChatShellProps) {
     );
   }
 
-  const isConversationView = props.chatView === "conversation" && Boolean(props.activeConversation);
+  const isConversationView = props.chatView !== "add-friend" && Boolean(props.activeConversation);
   return (
     <div className={isConversationView ? "chat-page" : ""}>
       <div className={isConversationView ? "chat-shell" : "wechat-layout"}>

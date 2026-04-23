@@ -134,7 +134,7 @@ export function useChatState({ isMobileViewport, getDefaultChatView, resolvePost
     [activeConversationId, conversations]
   );
   const currentMessages = activeConversationId ? messages[activeConversationId] ?? [] : [];
-  const isDesktopConversationView = !isMobileViewport && chatView === "conversation" && Boolean(activeConversation);
+  const isDesktopConversationView = !isMobileViewport && chatView !== "add-friend" && Boolean(activeConversation);
   const isMobileConversationView =
     isMobileViewport &&
     mobilePage.name === "chat_detail" &&

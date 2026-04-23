@@ -76,7 +76,8 @@ describe("hidechat app flow", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await screen.findByText("检测到本地登录态，输入幸运数字后可直接进入聊天。");
+    await screen.findByLabelText("请输入今日幸运数字");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
     await user.type(screen.getByLabelText("请输入今日幸运数字"), "2468");
     await user.click(screen.getByRole("button", { name: "查看彩蛋" }));
 
@@ -114,7 +115,7 @@ describe("hidechat app flow", () => {
 
     render(<App />);
 
-    await screen.findByText("检测到本地登录态，输入幸运数字后可直接进入聊天。");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
     await screen.findByText("查看彩蛋");
     matchMedia.setMatches(true);
 
@@ -197,7 +198,8 @@ describe("hidechat app flow", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await screen.findByText("检测到本地登录态，输入幸运数字后可直接进入聊天。");
+    await screen.findByLabelText("请输入今日幸运数字");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
     await user.type(screen.getByLabelText("请输入今日幸运数字"), "2468");
     await user.click(screen.getByRole("button", { name: "查看彩蛋" }));
 

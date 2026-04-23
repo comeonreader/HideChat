@@ -106,6 +106,31 @@ describe("hidechat auth closure", () => {
       body: { refreshToken: "refresh-token" }
     });
   });
+
+  it("supports logging out from the mobile conversation detail header", async () => {
+    const requestLog: Array<{ url: string; method: string; body: unknown }> = [];
+    vi.stubGlobal("fetch", createFetchMock({ trackRequests: requestLog }));
+    installMatchMediaMock(true);
+    const user = userEvent.setup();
+
+    render(<App />);
+    await enterAuthView(user);
+
+    await user.type(screen.getByPlaceholderText("邮箱"), "reader@example.com");
+    await user.type(screen.getByPlaceholderText("密码"), "Pass1234");
+    await user.click(screen.getByRole("button", { name: "使用当前信息进入" }));
+    await waitFor(() => expect(screen.getByRole("navigation", { name: "手机端底部导航" })).toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: /Anna/ }));
+    await screen.findByRole("button", { name: "退出账号" });
+    await user.click(screen.getByRole("button", { name: "退出账号" }));
+
+    await screen.findByLabelText("请输入今日幸运数字");
+    expect(window.localStorage.getItem("hidechat-auth")).toBeNull();
+    expect(requestLog.find((entry) => entry.url.endsWith("/api/auth/logout") && entry.method === "POST")).toMatchObject({
+      body: { refreshToken: "refresh-token" }
+    });
+  });
 });
 
 function createFetchMock(options: FetchMockOptions = {}) {
@@ -280,4 +305,35 @@ function jsonResponse(body: unknown) {
     status: 200,
     headers: { "Content-Type": "application/json" }
   });
+}
+
+function installMatchMediaMock(matches: boolean) {
+  const listeners = new Set<(event: MediaQueryListEvent) => void>();
+  let currentMatches = matches;
+  const mediaQueryList = {
+    get matches() {
+      return currentMatches;
+    },
+    media: "(max-width: 900px)",
+    onchange: null,
+    addEventListener: (_event: string, listener: EventListenerOrEventListenerObject) => {
+      if (typeof listener === "function") {
+        listeners.add(listener as (event: MediaQueryListEvent) => void);
+      }
+    },
+    removeEventListener: (_event: string, listener: EventListenerOrEventListenerObject) => {
+      if (typeof listener === "function") {
+        listeners.delete(listener as (event: MediaQueryListEvent) => void);
+      }
+    },
+    addListener: (listener: (event: MediaQueryListEvent) => void) => {
+      listeners.add(listener);
+    },
+    removeListener: (listener: (event: MediaQueryListEvent) => void) => {
+      listeners.delete(listener);
+    }
+  };
+
+  vi.stubGlobal("matchMedia", vi.fn(() => mediaQueryList));
+  return mediaQueryList;
 }
