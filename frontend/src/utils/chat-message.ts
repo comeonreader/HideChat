@@ -2,8 +2,10 @@ import type { ChatMessage, ContactItem, ConversationItem, FileInfo, RecentContac
 
 export function normalizeIncomingMessage(data: unknown): ChatMessage {
   const raw = data as Record<string, unknown>;
+  const deliveryStatus = raw.deliveryStatus ? String(raw.deliveryStatus) : undefined;
   return {
     messageId: String(raw.messageId ?? `m_${Date.now()}`),
+    clientMessageId: raw.clientMessageId == null ? null : String(raw.clientMessageId),
     conversationId: String(raw.conversationId ?? ""),
     senderUid: String(raw.senderUid ?? ""),
     receiverUid: String(raw.receiverUid ?? ""),
@@ -13,8 +15,77 @@ export function normalizeIncomingMessage(data: unknown): ChatMessage {
     fileId: raw.fileId ? String(raw.fileId) : null,
     clientMsgTime: raw.clientMsgTime == null ? null : Number(raw.clientMsgTime),
     serverMsgTime: Number(raw.serverMsgTime ?? Date.now()),
-    serverStatus: raw.serverStatus ? String(raw.serverStatus) : undefined
+    serverStatus: raw.serverStatus ? String(raw.serverStatus) : undefined,
+    deliveryStatus:
+      deliveryStatus === "sending" || deliveryStatus === "sent" || deliveryStatus === "failed"
+        ? deliveryStatus
+        : undefined
   };
+}
+
+function isSameMessage(left: ChatMessage, right: ChatMessage): boolean {
+  if (left.clientMessageId && right.clientMessageId) {
+    return left.clientMessageId === right.clientMessageId;
+  }
+  if (
+    left.clientMsgTime != null &&
+    right.clientMsgTime != null &&
+    left.clientMsgTime === right.clientMsgTime &&
+    left.conversationId === right.conversationId &&
+    left.senderUid === right.senderUid &&
+    left.receiverUid === right.receiverUid &&
+    left.messageType === right.messageType &&
+    left.payload === right.payload &&
+    (left.fileId ?? null) === (right.fileId ?? null)
+  ) {
+    return true;
+  }
+  return left.messageId === right.messageId;
+}
+
+export function hasConversationMessage(messages: ChatMessage[], candidate: ChatMessage): boolean {
+  return messages.some((message) => isSameMessage(message, candidate));
+}
+
+export function upsertConversationMessages(messages: ChatMessage[], incoming: ChatMessage): ChatMessage[] {
+  const existingIndex = messages.findIndex((item) => isSameMessage(item, incoming));
+  if (existingIndex < 0) {
+    return [...messages, incoming].sort((left, right) => left.serverMsgTime - right.serverMsgTime);
+  }
+  const existing = messages[existingIndex];
+  const merged: ChatMessage = {
+    ...existing,
+    ...incoming,
+    messageId: incoming.messageId || existing.messageId,
+    clientMessageId: incoming.clientMessageId ?? existing.clientMessageId ?? null,
+    deliveryStatus: incoming.deliveryStatus ?? existing.deliveryStatus,
+    serverStatus: incoming.serverStatus ?? existing.serverStatus
+  };
+  return messages
+    .map((item, index) => (index === existingIndex ? merged : item))
+    .sort((left, right) => left.serverMsgTime - right.serverMsgTime);
+}
+
+export function markConversationMessageDelivery(
+  messages: ChatMessage[],
+  matcher: { clientMessageId?: string | null; messageId?: string | null },
+  deliveryStatus: "sending" | "sent" | "failed",
+  patch?: Partial<ChatMessage>
+): ChatMessage[] {
+  return messages.map((message) => {
+    const matched =
+      (matcher.clientMessageId && message.clientMessageId === matcher.clientMessageId) ||
+      (matcher.messageId && message.messageId === matcher.messageId);
+    if (!matched) {
+      return message;
+    }
+    return {
+      ...message,
+      ...patch,
+      deliveryStatus,
+      serverStatus: patch?.serverStatus ?? message.serverStatus
+    };
+  });
 }
 
 export function sortContacts(items: ContactItem[]): ContactItem[] {

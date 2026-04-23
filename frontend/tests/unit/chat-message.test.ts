@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   buildFilePayload,
   getMaskedConversationPreview,
+  markConversationMessageDelivery,
   matchesMessageSearch,
   normalizeIncomingMessage,
   parseFilePayload,
-  resolveFileMessageType
+  resolveFileMessageType,
+  upsertConversationMessages
 } from "../../src/utils";
 
 describe("chat-message utils", () => {
@@ -22,6 +24,7 @@ describe("chat-message utils", () => {
       })
     ).toEqual({
       messageId: "m_1",
+      clientMessageId: null,
       conversationId: "c_1",
       senderUid: "u_1",
       receiverUid: "u_2",
@@ -31,8 +34,120 @@ describe("chat-message utils", () => {
       fileId: null,
       clientMsgTime: null,
       serverMsgTime: 1000,
-      serverStatus: undefined
+      serverStatus: undefined,
+      deliveryStatus: undefined
     });
+  });
+
+  it("merges optimistic and acked messages by clientMessageId", () => {
+    const merged = upsertConversationMessages(
+      [
+        {
+          messageId: "local_cm_1",
+          clientMessageId: "cm_1",
+          conversationId: "c_1",
+          senderUid: "u_1",
+          receiverUid: "u_2",
+          payload: "hello",
+          messageType: "text",
+          serverMsgTime: 1_000,
+          deliveryStatus: "sending",
+          serverStatus: "sending"
+        }
+      ],
+      {
+        messageId: "m_1",
+        clientMessageId: "cm_1",
+        conversationId: "c_1",
+        senderUid: "u_1",
+        receiverUid: "u_2",
+        payload: "hello",
+        messageType: "text",
+        serverMsgTime: 1_100,
+        deliveryStatus: "sent",
+        serverStatus: "sent"
+      }
+    );
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toEqual(
+      expect.objectContaining({
+        messageId: "m_1",
+        clientMessageId: "cm_1",
+        deliveryStatus: "sent"
+      })
+    );
+  });
+
+  it("merges sync-recovered self messages by clientMsgTime when ack was lost", () => {
+    const merged = upsertConversationMessages(
+      [
+        {
+          messageId: "local_cm_sync_1",
+          clientMessageId: "cm_sync_1",
+          conversationId: "c_1",
+          senderUid: "u_1",
+          receiverUid: "u_2",
+          payload: "hello",
+          messageType: "text",
+          clientMsgTime: 1_000,
+          serverMsgTime: 1_000,
+          deliveryStatus: "failed",
+          serverStatus: "failed"
+        }
+      ],
+      {
+        messageId: "m_sync_1",
+        conversationId: "c_1",
+        senderUid: "u_1",
+        receiverUid: "u_2",
+        payload: "hello",
+        messageType: "text",
+        clientMsgTime: 1_000,
+        serverMsgTime: 1_100,
+        deliveryStatus: "sent",
+        serverStatus: "delivered"
+      }
+    );
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toEqual(
+      expect.objectContaining({
+        messageId: "m_sync_1",
+        clientMessageId: "cm_sync_1",
+        deliveryStatus: "sent",
+        serverStatus: "delivered"
+      })
+    );
+  });
+
+  it("marks message delivery status by clientMessageId", () => {
+    const next = markConversationMessageDelivery(
+      [
+        {
+          messageId: "local_cm_2",
+          clientMessageId: "cm_2",
+          conversationId: "c_1",
+          senderUid: "u_1",
+          receiverUid: "u_2",
+          payload: "hello",
+          messageType: "text",
+          serverMsgTime: 1_000,
+          deliveryStatus: "sending",
+          serverStatus: "sending"
+        }
+      ],
+      { clientMessageId: "cm_2" },
+      "failed",
+      { serverStatus: "failed" }
+    );
+
+    expect(next[0]).toEqual(
+      expect.objectContaining({
+        deliveryStatus: "failed",
+        serverStatus: "failed"
+      })
+    );
   });
 
   it("serializes and parses file payloads for image and file messages", () => {

@@ -68,7 +68,6 @@ com/hidechat/modules/auth/vo/RegisterUserVO.class
 com/hidechat/modules/contact/service/impl/ContactServiceImpl.class
 com/hidechat/modules/auth/controller/AuthController.class
 com/hidechat/persistence/mapper/ImDisguiseLuckyCodeMapper.class
-com/hidechat/websocket/config/WebSocketConfig.class
 com/hidechat/security/jwt/JwtClaims.class
 com/hidechat/persistence/mapper/ImConversationMapper.class
 com/hidechat/persistence/mapper/ImUserAuthMapper.class
@@ -104,8 +103,8 @@ com/hidechat/modules/auth/vo/AuthTokenVO.class
 com/hidechat/security/filter/AuthRateLimitFilter$WindowCounter.class
 com/hidechat/modules/user/dto/UpdateProfileRequest.class
 com/hidechat/modules/auth/dto/RefreshTokenRequest.class
+com/hidechat/websocket/handler/ChatWebSocketHandler$1.class
 com/hidechat/modules/system/dto/DisguiseConfigRequest.class
-com/hidechat/websocket/handler/ChatWebSocketHandler.class
 com/hidechat/modules/file/dto/CompleteFileUploadRequest.class
 com/hidechat/modules/user/controller/UserController.class
 com/hidechat/persistence/entity/ImFileEntity.class

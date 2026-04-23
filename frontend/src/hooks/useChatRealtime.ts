@@ -1,6 +1,15 @@
 import { useEffect, useRef } from "react";
-import { clearConversationUnread, createChatWebSocket, markMessagesRead } from "../api/client";
-import type { ChatMessage, ConversationItem, HiddenSession } from "../types";
+import { getRealtimeConnectionManager } from "../api/realtime-manager";
+import { clearConversationUnread, markMessagesRead } from "../api/client";
+import { getRealtimeStore } from "../store/realtime-store";
+import type {
+  ChatMessage,
+  ConversationItem,
+  HiddenSession,
+  MessageSyncResponse,
+  RealtimeEnvelope,
+  RealtimeStateSnapshot
+} from "../types";
 
 interface UseChatRealtimeOptions {
   screen: "disguise" | "auth" | "chat";
@@ -14,12 +23,9 @@ interface UseChatRealtimeOptions {
   onReceiveMessage: (message: ChatMessage) => Promise<void>;
   onAck: (data: unknown) => void;
   onReadReceipt: (data: unknown) => void;
+  onSyncResponse: (response: MessageSyncResponse) => Promise<void>;
+  onSyncFallback: () => Promise<void>;
   normalizeIncomingMessage: (data: unknown) => ChatMessage;
-}
-
-interface WsEnvelope {
-  type: string;
-  data: unknown;
 }
 
 export function useChatRealtime({
@@ -34,85 +40,141 @@ export function useChatRealtime({
   onReceiveMessage,
   onAck,
   onReadReceipt,
+  onSyncResponse,
+  onSyncFallback,
   normalizeIncomingMessage
 }: UseChatRealtimeOptions) {
-  const socketRef = useRef<WebSocket | null>(null);
+  const managerRef = useRef(getRealtimeConnectionManager());
+  const realtimeStoreRef = useRef(getRealtimeStore());
   const onStatusChangeRef = useRef(onStatusChange);
   const onReceiveMessageRef = useRef(onReceiveMessage);
   const onAckRef = useRef(onAck);
   const onReadReceiptRef = useRef(onReadReceipt);
+  const onSyncResponseRef = useRef(onSyncResponse);
+  const onSyncFallbackRef = useRef(onSyncFallback);
   const normalizeIncomingMessageRef = useRef(normalizeIncomingMessage);
+  const lastConnectionStateRef = useRef<RealtimeStateSnapshot["connectionState"]>("idle");
+  const syncCursorRef = useRef<string | null>(realtimeStoreRef.current.getSnapshot().syncCursor);
 
   useEffect(() => {
     onStatusChangeRef.current = onStatusChange;
     onReceiveMessageRef.current = onReceiveMessage;
     onAckRef.current = onAck;
     onReadReceiptRef.current = onReadReceipt;
+    onSyncResponseRef.current = onSyncResponse;
+    onSyncFallbackRef.current = onSyncFallback;
     normalizeIncomingMessageRef.current = normalizeIncomingMessage;
-  }, [normalizeIncomingMessage, onAck, onReadReceipt, onReceiveMessage, onStatusChange]);
+  }, [normalizeIncomingMessage, onAck, onReadReceipt, onReceiveMessage, onStatusChange, onSyncFallback, onSyncResponse]);
 
   const closeWebSocket = () => {
-    if (socketRef.current) {
-      socketRef.current.close();
-      socketRef.current = null;
-    }
+    managerRef.current.disconnect();
   };
 
   const sendRealtimePayload = (payload: unknown): boolean => {
-    const socket = socketRef.current;
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
-      return false;
+    return managerRef.current.send(payload);
+  };
+
+  const requestIncrementalSync = (sinceCursor?: string | null) => {
+    const synced = sendRealtimePayload({
+      type: "sync_request",
+      data: {
+        sinceCursor: sinceCursor ?? syncCursorRef.current,
+        pageSize: 100
+      }
+    });
+    if (!synced) {
+      void onSyncFallbackRef.current().catch(() => undefined);
     }
-    socket.send(JSON.stringify(payload));
-    return true;
   };
 
   useEffect(() => {
-    if (!session?.tokens?.accessToken || screen !== "chat") {
-      closeWebSocket();
-      return;
-    }
-
-    const socket = createChatWebSocket(session.tokens.accessToken);
-    socketRef.current = socket;
-
-    socket.onopen = () => {
-      onStatusChangeRef.current("已连接后端聊天通道，实时消息已启用。");
-    };
-
-    socket.onmessage = (event) => {
+    const unsubscribeMessage = managerRef.current.subscribeToMessages((envelope: RealtimeEnvelope) => {
       void (async () => {
         try {
-          const envelope = JSON.parse(event.data) as WsEnvelope;
-          if (envelope.type === "CHAT_RECEIVE") {
+          if (envelope.type === "message_receive" || envelope.type === "CHAT_RECEIVE") {
             await onReceiveMessageRef.current(normalizeIncomingMessageRef.current(envelope.data));
             return;
           }
-          if (envelope.type === "CHAT_ACK") {
+          if (envelope.type === "message_ack" || envelope.type === "CHAT_ACK") {
             onAckRef.current(envelope.data);
             return;
           }
-          if (envelope.type === "CHAT_READ") {
+          if (envelope.type === "message_read" || envelope.type === "CHAT_READ") {
             onReadReceiptRef.current(envelope.data);
+            return;
+          }
+          if (envelope.type === "sync_response") {
+            const raw = envelope.data as Record<string, unknown>;
+            const previousCursor = syncCursorRef.current;
+            const nextCursor = raw.nextCursor == null ? previousCursor : String(raw.nextCursor);
+            const response: MessageSyncResponse = {
+              messages: Array.isArray(raw.messages)
+                ? raw.messages.map((message) => normalizeIncomingMessageRef.current(message))
+                : [],
+              nextCursor,
+              hasMore: Boolean(raw.hasMore)
+            };
+            syncCursorRef.current = nextCursor;
+            realtimeStoreRef.current.setSyncCursor(nextCursor);
+            await onSyncResponseRef.current(response);
+            if (response.hasMore && nextCursor && nextCursor !== previousCursor) {
+              requestIncrementalSync(nextCursor);
+            }
+            return;
+          }
+          if (envelope.type === "error" || envelope.type === "CHAT_ERROR") {
+            if (typeof envelope.requestId === "string" && envelope.requestId.startsWith("sync_request_")) {
+              await onSyncFallbackRef.current();
+              return;
+            }
+            onStatusChangeRef.current("实时消息发送失败，请稍后重试。");
           }
         } catch {
           onStatusChangeRef.current("收到无法解析的实时消息，已忽略。");
         }
       })();
-    };
+    });
+    const unsubscribeState = managerRef.current.subscribeToState((snapshot) => {
+      const previousState = lastConnectionStateRef.current;
+      lastConnectionStateRef.current = snapshot.connectionState;
+      syncCursorRef.current = snapshot.syncCursor;
 
-    socket.onclose = () => {
-      if (socketRef.current === socket) {
-        socketRef.current = null;
+      if (snapshot.connectionState === previousState) {
+        return;
       }
-    };
+      if (snapshot.connectionState === "connected") {
+        onStatusChangeRef.current("已连接后端聊天通道，实时消息已启用。");
+        requestIncrementalSync(snapshot.syncCursor);
+        return;
+      }
+      if (snapshot.connectionState === "offline") {
+        onStatusChangeRef.current("网络已断开，实时通道已暂停。");
+        return;
+      }
+      if (snapshot.connectionState === "reconnecting") {
+        onStatusChangeRef.current("实时通道重连中，消息会继续尝试同步。");
+      }
+    });
 
     return () => {
-      if (socketRef.current === socket) {
-        socketRef.current = null;
-      }
-      socket.close();
+      unsubscribeMessage();
+      unsubscribeState();
     };
+  }, []);
+
+  useEffect(() => () => {
+    managerRef.current.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!session?.tokens?.accessToken || screen !== "chat") {
+      managerRef.current.disconnect();
+      return;
+    }
+
+    managerRef.current.connect(session.tokens.accessToken);
+
+    return undefined;
   }, [screen, session?.tokens?.accessToken]);
 
   useEffect(() => {
@@ -144,7 +206,7 @@ export function useChatRealtime({
     void (async () => {
       try {
         const synced = sendRealtimePayload({
-          type: "CHAT_READ",
+          type: "message_read",
           data: { conversationId: activeConversation.conversationId, messageIds: unreadMessageIds }
         });
         if (!synced) {

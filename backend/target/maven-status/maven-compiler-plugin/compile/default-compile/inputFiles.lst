@@ -56,6 +56,7 @@
 /home/reader/HideChat/backend/src/main/java/com/hidechat/modules/message/service/impl/MessageServiceImpl.java
 /home/reader/HideChat/backend/src/main/java/com/hidechat/modules/message/vo/MessageHistoryVO.java
 /home/reader/HideChat/backend/src/main/java/com/hidechat/modules/message/vo/MessageItemVO.java
+/home/reader/HideChat/backend/src/main/java/com/hidechat/modules/message/vo/MessageSyncVO.java
 /home/reader/HideChat/backend/src/main/java/com/hidechat/modules/system/controller/SystemController.java
 /home/reader/HideChat/backend/src/main/java/com/hidechat/modules/system/dto/DisguiseConfigRequest.java
 /home/reader/HideChat/backend/src/main/java/com/hidechat/modules/system/dto/VerifyLuckyNumberRequest.java
@@ -103,6 +104,15 @@
 /home/reader/HideChat/backend/src/main/java/com/hidechat/security/jwt/JwtProperties.java
 /home/reader/HideChat/backend/src/main/java/com/hidechat/security/jwt/JwtTokenProvider.java
 /home/reader/HideChat/backend/src/main/java/com/hidechat/websocket/config/WebSocketConfig.java
+/home/reader/HideChat/backend/src/main/java/com/hidechat/websocket/dto/AuthPayloadDTO.java
+/home/reader/HideChat/backend/src/main/java/com/hidechat/websocket/dto/MessageAckPayloadDTO.java
+/home/reader/HideChat/backend/src/main/java/com/hidechat/websocket/dto/MessageSendPayloadDTO.java
+/home/reader/HideChat/backend/src/main/java/com/hidechat/websocket/dto/PingPayloadDTO.java
+/home/reader/HideChat/backend/src/main/java/com/hidechat/websocket/dto/RealtimeEnvelopeDTO.java
+/home/reader/HideChat/backend/src/main/java/com/hidechat/websocket/dto/RealtimeEnvelopeTypeEnum.java
+/home/reader/HideChat/backend/src/main/java/com/hidechat/websocket/dto/RealtimeErrorPayloadDTO.java
+/home/reader/HideChat/backend/src/main/java/com/hidechat/websocket/dto/SyncRequestPayloadDTO.java
+/home/reader/HideChat/backend/src/main/java/com/hidechat/websocket/dto/SyncResponsePayloadDTO.java
 /home/reader/HideChat/backend/src/main/java/com/hidechat/websocket/dto/WebSocketMessageDTO.java
 /home/reader/HideChat/backend/src/main/java/com/hidechat/websocket/handler/ChatWebSocketHandler.java
 /home/reader/HideChat/backend/src/main/java/com/hidechat/websocket/security/JwtHandshakeInterceptor.java

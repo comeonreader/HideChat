@@ -57,19 +57,38 @@ describe("hidechat backend realtime flow", () => {
     expect(MockWebSocket.instances).toHaveLength(1);
     const socket = MockWebSocket.instances[0];
     socket.emitOpen();
+    await waitFor(() => expect(socket.sentMessages).toHaveLength(1));
+    socket.emitMessage({
+      type: "auth_ok",
+      data: {
+        userUid: "u_1001",
+        serverTime: 1712620800000,
+        heartbeatIntervalMs: 25_000,
+        sessionId: "ws_1001"
+      }
+    });
+    await waitFor(() =>
+      expect(socket.sentMessages.some((message) => JSON.parse(message).type === "sync_request")).toBe(true)
+    );
 
     await user.type(screen.getByLabelText("消息输入框"), "后端实时文本");
     await user.click(screen.getByRole("button", { name: "发送" }));
 
-    await waitFor(() => expect(socket.sentMessages).toHaveLength(1));
-    const sentMessage = JSON.parse(socket.sentMessages[0]) as { data: { messageId: string } };
+    await waitFor(() =>
+      expect(socket.sentMessages.filter((message) => JSON.parse(message).type === "message_send")).toHaveLength(1)
+    );
+    const sentMessage = JSON.parse(
+      socket.sentMessages.find((message) => JSON.parse(message).type === "message_send") as string
+    ) as { data: { conversationId: string; clientMessageId: string } };
 
     socket.emitMessage({
-      type: "CHAT_ACK",
+      type: "message_ack",
       data: {
-        messageId: sentMessage.data.messageId,
+        clientMessageId: sentMessage.data.clientMessageId,
+        messageId: "m_1001",
         message: {
-          messageId: sentMessage.data.messageId,
+          messageId: "m_1001",
+          clientMessageId: sentMessage.data.clientMessageId,
           conversationId: "c_1001",
           senderUid: "u_1001",
           receiverUid: "u_2001",
@@ -83,7 +102,7 @@ describe("hidechat backend realtime flow", () => {
     });
 
     socket.emitMessage({
-      type: "CHAT_RECEIVE",
+      type: "message_receive",
       data: {
         messageId: "m_2002",
         conversationId: "c_1001",
@@ -126,9 +145,22 @@ describe("hidechat backend realtime flow", () => {
     expect(MockWebSocket.instances).toHaveLength(1);
     const socket = MockWebSocket.instances[0];
     socket.emitOpen();
+    await waitFor(() => expect(socket.sentMessages).toHaveLength(1));
+    socket.emitMessage({
+      type: "auth_ok",
+      data: {
+        userUid: "u_1001",
+        serverTime: 1712620800000,
+        heartbeatIntervalMs: 25_000,
+        sessionId: "ws_1001"
+      }
+    });
+    await waitFor(() =>
+      expect(socket.sentMessages.some((message) => JSON.parse(message).type === "sync_request")).toBe(true)
+    );
 
     socket.emitMessage({
-      type: "CHAT_RECEIVE",
+      type: "message_receive",
       data: {
         messageId: "m_3001",
         conversationId: "c_2002",

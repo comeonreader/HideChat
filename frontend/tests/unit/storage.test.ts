@@ -17,16 +17,19 @@ describe("conversation storage", () => {
       messages: [
         {
           messageId: "m_1001",
+          clientMessageId: "cm_1001",
           conversationId: "c_1001",
           senderUid: "u_1001",
           receiverUid: "u_2001",
           payload: "hello",
           messageType: "text",
           serverMsgTime: 1_000,
-          serverStatus: "delivered"
+          serverStatus: "delivered",
+          deliveryStatus: "sent"
         }
       ],
-      updatedAt: 1_000
+      updatedAt: 1_000,
+      lastSyncCursor: "sync_1000"
     });
 
     await expect(listCachedConversations()).resolves.toEqual([
@@ -35,10 +38,12 @@ describe("conversation storage", () => {
         messages: [
           expect.objectContaining({
             messageId: "m_1001",
+            clientMessageId: "cm_1001",
             payload: "hello"
           })
         ],
-        updatedAt: 1_000
+        updatedAt: 1_000,
+        lastSyncCursor: "sync_1000"
       }
     ]);
   });
@@ -49,13 +54,15 @@ describe("conversation storage", () => {
       messages: [
         {
           messageId: "m_2001",
+          clientMessageId: "cm_2001",
           conversationId: "c_2001",
           senderUid: "u_1002",
           receiverUid: "u_1001",
           payload: "cached message",
           messageType: "text",
           serverMsgTime: 2_000,
-          serverStatus: "read"
+          serverStatus: "read",
+          deliveryStatus: "sent"
         }
       ],
       updatedAt: 2_000

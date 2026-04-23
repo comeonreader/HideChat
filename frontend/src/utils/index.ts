@@ -11,8 +11,11 @@ export function createMessage(input: {
   payloadType?: string;
   fileId?: string;
 }): ChatMessage {
+  const clientMessageId = `cm_${Math.random().toString(36).slice(2, 10)}`;
+  const now = Date.now();
   return {
-    messageId: `m_${Math.random().toString(36).slice(2, 10)}`,
+    messageId: `local_${clientMessageId}`,
+    clientMessageId,
     conversationId: input.conversationId,
     senderUid: input.senderUid,
     receiverUid: input.receiverUid,
@@ -20,9 +23,10 @@ export function createMessage(input: {
     messageType: input.messageType ?? "text",
     payloadType: input.payloadType ?? "plain",
     fileId: input.fileId ?? null,
-    clientMsgTime: Date.now(),
-    serverMsgTime: Date.now(),
-    serverStatus: "sending"
+    clientMsgTime: now,
+    serverMsgTime: now,
+    serverStatus: "sending",
+    deliveryStatus: "sending"
   };
 }
 

@@ -4,7 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -17,6 +19,7 @@ import com.hidechat.modules.message.dto.SendMessageRequest;
 import com.hidechat.modules.message.service.impl.MessageServiceImpl;
 import com.hidechat.modules.message.vo.MessageHistoryVO;
 import com.hidechat.modules.message.vo.MessageItemVO;
+import com.hidechat.modules.message.vo.MessageSyncVO;
 import com.hidechat.persistence.entity.ImContactEntity;
 import com.hidechat.persistence.entity.ImConversationEntity;
 import com.hidechat.persistence.entity.ImMessageEntity;
@@ -38,6 +41,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 
 @ExtendWith(MockitoExtension.class)
 class MessageServiceImplTest {
@@ -57,11 +62,17 @@ class MessageServiceImplTest {
     @Mock
     private ImContactMapper contactMapper;
 
+    @Mock
+    private StringRedisTemplate redisTemplate;
+
     private MessageServiceImpl messageService;
+    private ValueOperations<String, String> valueOperations;
 
     @BeforeEach
     void setUp() {
         Clock clock = Clock.fixed(Instant.parse("2026-04-08T00:00:00Z"), ZoneOffset.UTC);
+        valueOperations = mock(ValueOperations.class);
+        lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         messageService = new MessageServiceImpl(
             messageMapper,
             conversationMapper,
@@ -70,6 +81,7 @@ class MessageServiceImplTest {
             contactMapper,
             new IdGenerator(),
             new RandomValueGenerator(),
+            redisTemplate,
             clock
         );
     }
@@ -84,6 +96,7 @@ class MessageServiceImplTest {
 
         SendMessageRequest request = new SendMessageRequest();
         request.setConversationId("c_1001");
+        request.setClientMessageId("cm_1001");
         request.setReceiverUid("u_1002");
         request.setMessageType("text");
         request.setPayloadType("encrypted");
@@ -95,6 +108,7 @@ class MessageServiceImplTest {
         assertEquals("c_1001", result.getConversationId());
         assertEquals("u_1001", result.getSenderUid());
         assertEquals("u_1002", result.getReceiverUid());
+        assertEquals("cm_1001", result.getClientMessageId());
         assertEquals("delivered", result.getServerStatus());
         verify(messageMapper).insert(any(ImMessageEntity.class));
         verify(conversationMapper).updateById(any(ImConversationEntity.class));
@@ -118,6 +132,44 @@ class MessageServiceImplTest {
         assertEquals("m_1002", history.getList().get(0).getMessageId());
         assertEquals("m_1003", history.getList().get(1).getMessageId());
         assertEquals("1775606402000", history.getNextCursor());
+    }
+
+    @Test
+    void shouldListIncrementalMessagesWithCursor() {
+        when(messageMapper.selectList(any())).thenReturn(List.of(
+            buildMessage("m_1002", LocalDateTime.of(2026, 4, 8, 0, 0, 2)),
+            buildMessage("m_1003", LocalDateTime.of(2026, 4, 8, 0, 0, 3)),
+            buildMessage("m_1004", LocalDateTime.of(2026, 4, 8, 0, 0, 4))
+        ));
+
+        MessageSyncVO syncVO = messageService.listIncrementalMessages("u_1001", "1775606401000", List.of("c_1001"), 2);
+
+        assertEquals(2, syncVO.getMessages().size());
+        assertTrue(syncVO.isHasMore());
+        assertEquals("m_1002", syncVO.getMessages().get(0).getMessageId());
+        assertEquals("m_1003", syncVO.getMessages().get(1).getMessageId());
+        assertEquals("1775606403000", syncVO.getNextCursor());
+    }
+
+    @Test
+    void shouldReuseStoredMessageWhenClientMessageIdDuplicated() {
+        SendMessageRequest request = new SendMessageRequest();
+        request.setConversationId("c_1001");
+        request.setClientMessageId("cm_dup_1001");
+        request.setReceiverUid("u_1002");
+        request.setMessageType("text");
+        request.setPayloadType("plain");
+        request.setPayload("hello again");
+
+        when(valueOperations.get(any())).thenReturn("m_9001");
+        when(messageMapper.selectOne(any())).thenReturn(buildMessage("m_9001", LocalDateTime.of(2026, 4, 8, 0, 0, 9)));
+
+        MessageItemVO result = messageService.sendMessage("u_1001", request);
+
+        assertEquals("m_9001", result.getMessageId());
+        assertEquals("cm_dup_1001", result.getClientMessageId());
+        verify(messageMapper, never()).insert(any(ImMessageEntity.class));
+        verify(conversationMapper, never()).selectOne(any());
     }
 
     @Test

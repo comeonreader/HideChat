@@ -4,6 +4,7 @@ export interface CachedConversationRecord {
   conversationId: string;
   messages: ChatMessage[];
   updatedAt: number;
+  lastSyncCursor?: string | null;
 }
 
 const DB_NAME = "hidechat-local";
@@ -12,7 +13,7 @@ const LEGACY_SECRET_STORE_NAME = "local-secrets";
 
 async function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 3);
+    const request = indexedDB.open(DB_NAME, 4);
     request.onupgradeneeded = () => {
       const database = request.result;
       if (!database.objectStoreNames.contains(STORE_NAME)) {

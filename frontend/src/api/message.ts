@@ -1,9 +1,10 @@
-import type { ChatMessage } from "../types";
+import type { ChatMessage, MessageSyncResponse } from "../types";
 import { requestJson } from "./http";
 
 interface MessageHistoryResponse {
   list: Array<{
     messageId: string;
+    clientMessageId?: string | null;
     conversationId: string;
     senderUid: string;
     receiverUid: string;
@@ -14,7 +15,14 @@ interface MessageHistoryResponse {
     clientMsgTime?: number | null;
     serverMsgTime: number;
     serverStatus?: string;
+    deliveryStatus?: "sending" | "sent" | "failed";
   }>;
+  nextCursor?: string | null;
+  hasMore: boolean;
+}
+
+interface MessageSyncApiResponse {
+  messages: MessageHistoryResponse["list"];
   nextCursor?: string | null;
   hasMore: boolean;
 }
@@ -22,6 +30,7 @@ interface MessageHistoryResponse {
 function mapMessage(message: MessageHistoryResponse["list"][number]): ChatMessage {
   return {
     messageId: message.messageId,
+    clientMessageId: message.clientMessageId ?? null,
     conversationId: message.conversationId,
     senderUid: message.senderUid,
     receiverUid: message.receiverUid,
@@ -31,7 +40,8 @@ function mapMessage(message: MessageHistoryResponse["list"][number]): ChatMessag
     fileId: message.fileId,
     clientMsgTime: message.clientMsgTime,
     serverMsgTime: message.serverMsgTime,
-    serverStatus: message.serverStatus
+    serverStatus: message.serverStatus,
+    deliveryStatus: message.deliveryStatus
   };
 }
 
@@ -45,7 +55,7 @@ export async function listMessageHistory(conversationId: string): Promise<ChatMe
 }
 
 export async function sendMessage(input: {
-  messageId?: string;
+  clientMessageId?: string;
   conversationId: string;
   receiverUid: string;
   payload: string;
@@ -59,7 +69,7 @@ export async function sendMessage(input: {
     {
       method: "POST",
       body: JSON.stringify({
-        messageId: input.messageId,
+        clientMessageId: input.clientMessageId,
         conversationId: input.conversationId,
         receiverUid: input.receiverUid,
         messageType: input.messageType ?? "text",
@@ -72,6 +82,33 @@ export async function sendMessage(input: {
     true
   );
   return mapMessage(message);
+}
+
+export async function syncMessages(input: {
+  sinceCursor?: string | null;
+  conversationIds?: string[];
+  pageSize?: number;
+}): Promise<MessageSyncResponse> {
+  const params = new URLSearchParams();
+  if (input.sinceCursor) {
+    params.set("sinceCursor", input.sinceCursor);
+  }
+  if (input.pageSize) {
+    params.set("pageSize", String(input.pageSize));
+  }
+  input.conversationIds?.filter(Boolean).forEach((conversationId) => {
+    params.append("conversationIds", conversationId);
+  });
+  const response = await requestJson<MessageSyncApiResponse>(
+    `/message/sync${params.size > 0 ? `?${params.toString()}` : ""}`,
+    { method: "GET" },
+    true
+  );
+  return {
+    messages: response.messages.map(mapMessage).sort((left, right) => left.serverMsgTime - right.serverMsgTime),
+    nextCursor: response.nextCursor ?? null,
+    hasMore: response.hasMore
+  };
 }
 
 export async function markMessagesRead(conversationId: string, messageIds: string[]): Promise<void> {

@@ -6,8 +6,10 @@ import com.hidechat.modules.message.dto.SendMessageRequest;
 import com.hidechat.modules.message.service.MessageService;
 import com.hidechat.modules.message.vo.MessageHistoryVO;
 import com.hidechat.modules.message.vo.MessageItemVO;
+import com.hidechat.modules.message.vo.MessageSyncVO;
 import com.hidechat.security.context.CurrentUserProvider;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -37,6 +39,18 @@ public class MessageController {
             currentUserProvider.getRequiredUserUid(),
             conversationId,
             cursor,
+            pageSize
+        ));
+    }
+
+    @GetMapping("/sync")
+    public ApiResponse<MessageSyncVO> sync(@RequestParam(required = false) String sinceCursor,
+                                           @RequestParam(required = false) List<String> conversationIds,
+                                           @RequestParam(required = false) Integer pageSize) {
+        return ApiResponse.success(messageService.listIncrementalMessages(
+            currentUserProvider.getRequiredUserUid(),
+            sinceCursor,
+            conversationIds,
             pageSize
         ));
     }

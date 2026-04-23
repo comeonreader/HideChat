@@ -18,6 +18,7 @@ import com.hidechat.modules.message.dto.SendMessageRequest;
 import com.hidechat.modules.message.service.MessageService;
 import com.hidechat.modules.message.vo.MessageHistoryVO;
 import com.hidechat.modules.message.vo.MessageItemVO;
+import com.hidechat.modules.message.vo.MessageSyncVO;
 import com.hidechat.security.context.CurrentUserProvider;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -100,6 +101,26 @@ class MessageControllerTest {
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(0));
+    }
+
+    @Test
+    void shouldSyncIncrementalMessages() throws Exception {
+        when(currentUserProvider.getRequiredUserUid()).thenReturn("u_1001");
+        MessageItemVO item = new MessageItemVO();
+        item.setMessageId("m_1002");
+        MessageSyncVO syncVO = new MessageSyncVO();
+        syncVO.setMessages(List.of(item));
+        syncVO.setHasMore(false);
+        syncVO.setNextCursor("1775606402000");
+        when(messageService.listIncrementalMessages("u_1001", "1775606401000", List.of("c_1001"), 50)).thenReturn(syncVO);
+
+        mockMvc.perform(get("/api/message/sync")
+                .param("sinceCursor", "1775606401000")
+                .param("conversationIds", "c_1001")
+                .param("pageSize", "50"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.messages[0].messageId").value("m_1002"))
+            .andExpect(jsonPath("$.data.nextCursor").value("1775606402000"));
     }
 
     @Test

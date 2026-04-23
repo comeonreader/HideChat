@@ -8,6 +8,8 @@ import lombok.Setter;
 @Setter
 public class SendMessageRequest {
 
+    private String clientMessageId;
+
     private String messageId;
 
     @NotBlank

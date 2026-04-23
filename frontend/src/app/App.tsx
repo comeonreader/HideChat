@@ -18,6 +18,7 @@ import {
   searchUsers,
   sendEmailCode,
   sendMessage,
+  syncMessages,
   uploadFile
 } from "../api/client";
 import { useAuthBootstrap } from "../hooks/useAuthBootstrap";
@@ -25,13 +26,16 @@ import { useChatRealtime } from "../hooks/useChatRealtime";
 import { useChatState, type ChatView, type MobilePage } from "../hooks/useChatState";
 import { useViewport } from "../hooks/useViewport";
 import { DisguiseEntryPage } from "../pages/disguise/DisguiseEntryPage";
+import { getRealtimeStore } from "../store/realtime-store";
 import { clearCachedConversations } from "../storage";
-import type { ChatMessage, ConversationItem, HiddenSession, LocalUser } from "../types";
+import type { ChatMessage, ConversationItem, HiddenSession, LocalUser, MessageSyncResponse } from "../types";
 import {
   buildFilePayload,
   buildMessagePreview,
   createMessage,
   extractTextPayload,
+  hasConversationMessage,
+  markConversationMessageDelivery,
   formatConversationDivider,
   formatFileSubtitle,
   formatMessageTime,
@@ -46,7 +50,8 @@ import {
   resolvePeerUid,
   sortContacts,
   sortConversations,
-  sortRecentContacts
+  sortRecentContacts,
+  upsertConversationMessages
 } from "../utils";
 import "./app.css";
 
@@ -124,10 +129,20 @@ export function App() {
   });
 
   const conversationsRef = useRef(conversations);
+  const pendingAckTimersRef = useRef<Record<string, number>>({});
+  const realtimeStoreRef = useRef(getRealtimeStore());
 
   useEffect(() => {
     conversationsRef.current = conversations;
   }, [conversations]);
+
+  useEffect(
+    () => () => {
+      Object.values(pendingAckTimersRef.current).forEach((timerId) => window.clearTimeout(timerId));
+      pendingAckTimersRef.current = {};
+    },
+    []
+  );
 
   useEffect(() => {
     if (!statusText) {
@@ -308,11 +323,12 @@ export function App() {
     });
 
     applyIncomingMessage(optimisticMessage);
+    scheduleAckTimeout(optimisticMessage.clientMessageId);
     if (
       sendRealtimePayload({
-        type: "CHAT_SEND",
+        type: "message_send",
         data: {
-          messageId: optimisticMessage.messageId,
+          clientMessageId: optimisticMessage.clientMessageId,
           conversationId: input.conversationId,
           receiverUid: input.receiverUid,
           messageType: input.messageType,
@@ -328,7 +344,7 @@ export function App() {
 
     try {
       const sent = await sendMessage({
-        messageId: optimisticMessage.messageId,
+        clientMessageId: optimisticMessage.clientMessageId ?? undefined,
         conversationId: input.conversationId,
         receiverUid: input.receiverUid,
         messageType: input.messageType,
@@ -337,9 +353,15 @@ export function App() {
         fileId: input.fileId,
         clientMsgTime: optimisticMessage.clientMsgTime ?? Date.now()
       });
-      applyIncomingMessage(sent);
+      clearAckTimeout(optimisticMessage.clientMessageId);
+      applyIncomingMessage({
+        ...sent,
+        clientMessageId: sent.clientMessageId ?? optimisticMessage.clientMessageId,
+        deliveryStatus: "sent"
+      });
       setStatusText("实时通道未连接，已通过 HTTP 发送消息。");
     } catch (error) {
+      clearAckTimeout(optimisticMessage.clientMessageId);
       setMessages((prev) => removeMessage(prev, optimisticMessage));
       if (input.messageType === "text") {
         setComposer(extractTextPayload(input.payload));
@@ -349,16 +371,13 @@ export function App() {
   }
 
   function applyIncomingMessage(message: ChatMessage) {
+    let messageAlreadyExists = false;
     setMessages((prev) => {
       const current = prev[message.conversationId] ?? [];
-      const existingIndex = current.findIndex((item) => item.messageId === message.messageId);
-      const nextMessages =
-        existingIndex >= 0
-          ? current.map((item, index) => (index === existingIndex ? { ...item, ...message } : item))
-          : [...current, message];
+       messageAlreadyExists = hasConversationMessage(current, message);
       return {
         ...prev,
-        [message.conversationId]: nextMessages.sort((left, right) => left.serverMsgTime - right.serverMsgTime)
+        [message.conversationId]: upsertConversationMessages(current, message)
       };
     });
 
@@ -373,7 +392,9 @@ export function App() {
                 unreadCount:
                   message.senderUid === session?.user.userUid
                     ? item.unreadCount ?? 0
-                    : (item.unreadCount ?? 0) + 1
+                    : messageAlreadyExists
+                      ? item.unreadCount ?? 0
+                      : (item.unreadCount ?? 0) + 1
               }
             : item
         )
@@ -405,25 +426,118 @@ export function App() {
     applyIncomingMessage(message);
   }
 
+  async function applySyncResult(response: MessageSyncResponse) {
+    if (response.messages.length === 0) {
+      realtimeStoreRef.current.setSyncCursor(response.nextCursor ?? realtimeStoreRef.current.getSnapshot().syncCursor);
+      return;
+    }
+
+    const hasUnknownConversation = response.messages.some(
+      (message) => !conversationsRef.current.some((item) => item.conversationId === message.conversationId)
+    );
+    if (hasUnknownConversation) {
+      await refreshConversationList();
+    }
+
+    for (const message of response.messages) {
+      applyIncomingMessage({
+        ...message,
+        deliveryStatus: message.senderUid === session?.user.userUid ? message.deliveryStatus ?? "sent" : message.deliveryStatus
+      });
+    }
+
+    realtimeStoreRef.current.setSyncCursor(response.nextCursor ?? realtimeStoreRef.current.getSnapshot().syncCursor);
+  }
+
+  async function fallbackIncrementalSync() {
+    const currentCursor = realtimeStoreRef.current.getSnapshot().syncCursor;
+    try {
+      let nextCursor = currentCursor;
+      let hasMore = true;
+      while (hasMore) {
+        const response = await syncMessages({
+          sinceCursor: nextCursor,
+          pageSize: 100
+        });
+        await applySyncResult(response);
+        hasMore = response.hasMore && response.nextCursor !== nextCursor;
+        nextCursor = response.nextCursor ?? nextCursor;
+      }
+    } catch {
+      const refreshedConversations = await refreshConversationList();
+      await Promise.all(
+        refreshedConversations.map(async (conversation) => {
+          const history = await listMessageHistory(conversation.conversationId).catch(() => []);
+          setMessages((prev) => ({
+            ...prev,
+            [conversation.conversationId]: history
+          }));
+        })
+      );
+    }
+  }
+
   function reconcileAck(data: unknown) {
     const raw = data as Record<string, unknown>;
+    const clientMessageId = raw.clientMessageId == null ? null : String(raw.clientMessageId);
+    clearAckTimeout(clientMessageId);
     const ackMessage = raw.message ? normalizeIncomingMessage(raw.message) : null;
     if (ackMessage) {
-      applyIncomingMessage(ackMessage);
+      applyIncomingMessage({
+        ...ackMessage,
+        clientMessageId: ackMessage.clientMessageId ?? clientMessageId,
+        deliveryStatus: "sent",
+        serverStatus: String(raw.status ?? ackMessage.serverStatus ?? "delivered")
+      });
       return;
     }
     const messageId = String(raw.messageId ?? "");
-    if (!messageId) {
+    if (!messageId && !clientMessageId) {
       return;
     }
     setMessages((prev) =>
       Object.fromEntries(
         Object.entries(prev).map(([conversationId, items]) => [
           conversationId,
-          items.map((item) => (item.messageId === messageId ? { ...item, serverStatus: "delivered" } : item))
+          markConversationMessageDelivery(items, { clientMessageId, messageId }, "sent", {
+            messageId: messageId || undefined,
+            serverStatus: String(raw.status ?? "delivered")
+          })
         ])
       )
     );
+  }
+
+  function scheduleAckTimeout(clientMessageId?: string | null) {
+    if (!clientMessageId) {
+      return;
+    }
+    clearAckTimeout(clientMessageId);
+    pendingAckTimersRef.current[clientMessageId] = window.setTimeout(() => {
+      setMessages((prev) =>
+        Object.fromEntries(
+          Object.entries(prev).map(([conversationId, items]) => [
+            conversationId,
+            markConversationMessageDelivery(items, { clientMessageId }, "failed", {
+              serverStatus: "failed"
+            })
+          ])
+        )
+      );
+      setStatusText("部分消息未收到 ACK，已标记为发送失败。");
+      delete pendingAckTimersRef.current[clientMessageId];
+    }, 10_000);
+  }
+
+  function clearAckTimeout(clientMessageId?: string | null) {
+    if (!clientMessageId) {
+      return;
+    }
+    const timerId = pendingAckTimersRef.current[clientMessageId];
+    if (timerId) {
+      window.clearTimeout(timerId);
+      delete pendingAckTimersRef.current[clientMessageId];
+    }
   }
 
   function applyReadReceipt(data: unknown) {
@@ -477,6 +591,9 @@ export function App() {
     }
 
     closeRealtimeConnection();
+    realtimeStoreRef.current.setSyncCursor(null);
+    Object.values(pendingAckTimersRef.current).forEach((timerId) => window.clearTimeout(timerId));
+    pendingAckTimersRef.current = {};
     await clearCachedConversations();
     setSession(null);
     setContacts([]);
@@ -499,6 +616,7 @@ export function App() {
   }
 
   async function hydrateAuthenticatedState(user: LocalUser, tokens: HiddenSession["tokens"], enterChat: boolean) {
+    realtimeStoreRef.current.setSyncCursor(null);
     setSession({
       user,
       tokens
@@ -552,6 +670,8 @@ export function App() {
     onReceiveMessage: handleIncomingRealtimeMessage,
     onAck: reconcileAck,
     onReadReceipt: applyReadReceipt,
+    onSyncResponse: applySyncResult,
+    onSyncFallback: fallbackIncrementalSync,
     normalizeIncomingMessage
   });
 

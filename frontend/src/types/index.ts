@@ -16,6 +16,61 @@ export interface HiddenSession {
   tokens?: AuthTokens;
 }
 
+export type ConnectionState =
+  | "idle"
+  | "connecting"
+  | "authenticating"
+  | "connected"
+  | "reconnecting"
+  | "offline"
+  | "closing"
+  | "closed"
+  | "error";
+
+export type RealtimeEnvelopeType =
+  | "auth"
+  | "auth_ok"
+  | "ping"
+  | "pong"
+  | "message_send"
+  | "message_ack"
+  | "message_receive"
+  | "message_read"
+  | "sync_request"
+  | "sync_response"
+  | "error"
+  | "PING"
+  | "PONG"
+  | "CHAT_SEND"
+  | "CHAT_ACK"
+  | "CHAT_RECEIVE"
+  | "CHAT_READ"
+  | "CHAT_ERROR";
+
+export interface RealtimeEnvelope<TData = unknown> {
+  type: RealtimeEnvelopeType | (string & {});
+  requestId?: string;
+  timestamp?: number;
+  traceId?: string;
+  data: TData;
+}
+
+export interface RealtimeStateSnapshot {
+  connectionState: ConnectionState;
+  lastConnectedAt: number | null;
+  lastPongAt: number | null;
+  retryCount: number;
+  isOnline: boolean;
+  isForeground: boolean;
+  syncCursor: string | null;
+}
+
+export interface MessageSyncResponse {
+  messages: ChatMessage[];
+  nextCursor?: string | null;
+  hasMore: boolean;
+}
+
 export interface ContactItem {
   peerUid: string;
   displayUserId?: string;
@@ -51,6 +106,7 @@ export interface ConversationItem {
 
 export interface ChatMessage {
   messageId: string;
+  clientMessageId?: string | null;
   conversationId: string;
   senderUid: string;
   receiverUid: string;
@@ -61,6 +117,7 @@ export interface ChatMessage {
   clientMsgTime?: number | null;
   serverMsgTime: number;
   serverStatus?: string;
+  deliveryStatus?: "sending" | "sent" | "failed";
 }
 
 export interface FileInfo {

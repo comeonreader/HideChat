@@ -8,6 +8,7 @@ import lombok.Setter;
 public class MessageItemVO {
 
     private String messageId;
+    private String clientMessageId;
     private String conversationId;
     private String senderUid;
     private String receiverUid;

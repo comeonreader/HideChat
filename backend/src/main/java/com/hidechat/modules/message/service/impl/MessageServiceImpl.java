@@ -1,6 +1,7 @@
 package com.hidechat.modules.message.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.hidechat.common.constant.RedisKeyConstants;
 import com.hidechat.common.exception.BusinessException;
 import com.hidechat.common.util.IdGenerator;
 import com.hidechat.common.util.RandomValueGenerator;
@@ -9,6 +10,7 @@ import com.hidechat.modules.message.dto.SendMessageRequest;
 import com.hidechat.modules.message.service.MessageService;
 import com.hidechat.modules.message.vo.MessageHistoryVO;
 import com.hidechat.modules.message.vo.MessageItemVO;
+import com.hidechat.modules.message.vo.MessageSyncVO;
 import com.hidechat.persistence.entity.ImContactEntity;
 import com.hidechat.persistence.entity.ImConversationEntity;
 import com.hidechat.persistence.entity.ImMessageEntity;
@@ -27,7 +29,10 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import org.springframework.stereotype.Service;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
@@ -36,6 +41,8 @@ public class MessageServiceImpl implements MessageService {
 
     private static final int DEFAULT_PAGE_SIZE = 20;
     private static final int MAX_PAGE_SIZE = 100;
+    private static final int DEFAULT_SYNC_PAGE_SIZE = 100;
+    private static final long MESSAGE_DEDUPE_TTL_HOURS = 24L;
 
     private final ImMessageMapper messageMapper;
     private final ImConversationMapper conversationMapper;
@@ -44,6 +51,7 @@ public class MessageServiceImpl implements MessageService {
     private final ImContactMapper contactMapper;
     private final IdGenerator idGenerator;
     private final RandomValueGenerator randomValueGenerator;
+    private final StringRedisTemplate redisTemplate;
     private final Clock clock;
 
     public MessageServiceImpl(ImMessageMapper messageMapper,
@@ -53,6 +61,7 @@ public class MessageServiceImpl implements MessageService {
                               ImContactMapper contactMapper,
                               IdGenerator idGenerator,
                               RandomValueGenerator randomValueGenerator,
+                              StringRedisTemplate redisTemplate,
                               Clock clock) {
         this.messageMapper = messageMapper;
         this.conversationMapper = conversationMapper;
@@ -61,12 +70,17 @@ public class MessageServiceImpl implements MessageService {
         this.contactMapper = contactMapper;
         this.idGenerator = idGenerator;
         this.randomValueGenerator = randomValueGenerator;
+        this.redisTemplate = redisTemplate;
         this.clock = clock;
     }
 
     @Override
     @Transactional
     public MessageItemVO sendMessage(String userUid, SendMessageRequest request) {
+        MessageItemVO duplicatedMessage = findDuplicatedMessage(userUid, request.getClientMessageId());
+        if (duplicatedMessage != null) {
+            return duplicatedMessage;
+        }
         ImConversationEntity conversation = requireConversationMember(request.getConversationId(), userUid);
         String peerUid = resolvePeerUid(conversation, userUid);
         if (!Objects.equals(peerUid, request.getReceiverUid())) {
@@ -77,9 +91,7 @@ public class MessageServiceImpl implements MessageService {
         LocalDateTime now = LocalDateTime.now(clock);
         ImMessageEntity entity = new ImMessageEntity();
         entity.setId(idGenerator.nextId());
-        entity.setMessageId(StringUtils.hasText(request.getMessageId())
-            ? request.getMessageId()
-            : randomValueGenerator.messageId());
+        entity.setMessageId(randomValueGenerator.messageId());
         entity.setConversationId(request.getConversationId());
         entity.setSenderUid(userUid);
         entity.setReceiverUid(request.getReceiverUid());
@@ -96,7 +108,9 @@ public class MessageServiceImpl implements MessageService {
         updateConversationAfterMessage(conversation, entity, now);
         touchContacts(userUid, request.getReceiverUid(), now);
         incrementUnreadCounter(request.getReceiverUid(), request.getConversationId(), now);
-        return toMessageItem(entity);
+        MessageItemVO messageItem = toMessageItem(entity, request.getClientMessageId());
+        cacheMessageDedupe(userUid, request.getClientMessageId(), messageItem.getMessageId());
+        return messageItem;
     }
 
     @Override
@@ -124,12 +138,52 @@ public class MessageServiceImpl implements MessageService {
         messages.sort(Comparator.comparing(ImMessageEntity::getServerMsgTime).thenComparing(ImMessageEntity::getId));
 
         MessageHistoryVO historyVO = new MessageHistoryVO();
-        historyVO.setList(messages.stream().map(this::toMessageItem).toList());
+        historyVO.setList(messages.stream().map(message -> toMessageItem(message, null)).toList());
         historyVO.setHasMore(hasMore);
         historyVO.setNextCursor(hasMore && !messages.isEmpty()
             ? String.valueOf(toEpochMilli(messages.get(0).getServerMsgTime()))
             : null);
         return historyVO;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public MessageSyncVO listIncrementalMessages(String userUid,
+                                                 String sinceCursor,
+                                                 List<String> conversationIds,
+                                                 Integer pageSize) {
+        int normalizedPageSize = normalizeSyncPageSize(pageSize);
+        LambdaQueryWrapper<ImMessageEntity> queryWrapper = new LambdaQueryWrapper<ImMessageEntity>()
+            .eq(ImMessageEntity::getDeleted, Boolean.FALSE)
+            .and(wrapper -> wrapper.eq(ImMessageEntity::getSenderUid, userUid)
+                .or()
+                .eq(ImMessageEntity::getReceiverUid, userUid));
+        if (StringUtils.hasText(sinceCursor)) {
+            queryWrapper.gt(ImMessageEntity::getServerMsgTime, parseCursor(sinceCursor));
+        }
+        List<String> normalizedConversationIds = conversationIds == null
+            ? List.of()
+            : conversationIds.stream().filter(StringUtils::hasText).distinct().toList();
+        if (!normalizedConversationIds.isEmpty()) {
+            queryWrapper.in(ImMessageEntity::getConversationId, normalizedConversationIds);
+        }
+        queryWrapper.orderByAsc(ImMessageEntity::getServerMsgTime)
+            .orderByAsc(ImMessageEntity::getId)
+            .last("limit " + (normalizedPageSize + 1));
+
+        List<ImMessageEntity> messages = messageMapper.selectList(queryWrapper);
+        boolean hasMore = messages.size() > normalizedPageSize;
+        if (hasMore) {
+            messages = new ArrayList<>(messages.subList(0, normalizedPageSize));
+        }
+
+        MessageSyncVO syncVO = new MessageSyncVO();
+        syncVO.setMessages(messages.stream().map(message -> toMessageItem(message, null)).toList());
+        syncVO.setHasMore(hasMore);
+        syncVO.setNextCursor(messages.isEmpty()
+            ? (StringUtils.hasText(sinceCursor) ? sinceCursor : null)
+            : String.valueOf(toEpochMilli(messages.get(messages.size() - 1).getServerMsgTime())));
+        return syncVO;
     }
 
     @Override
@@ -292,9 +346,10 @@ public class MessageServiceImpl implements MessageService {
         unreadCounterMapper.updateById(counter);
     }
 
-    private MessageItemVO toMessageItem(ImMessageEntity entity) {
+    private MessageItemVO toMessageItem(ImMessageEntity entity, String clientMessageId) {
         MessageItemVO vo = new MessageItemVO();
         vo.setMessageId(entity.getMessageId());
+        vo.setClientMessageId(clientMessageId);
         vo.setConversationId(entity.getConversationId());
         vo.setSenderUid(entity.getSenderUid());
         vo.setReceiverUid(entity.getReceiverUid());
@@ -308,9 +363,45 @@ public class MessageServiceImpl implements MessageService {
         return vo;
     }
 
+    private MessageItemVO findDuplicatedMessage(String userUid, String clientMessageId) {
+        if (!StringUtils.hasText(clientMessageId)) {
+            return null;
+        }
+        String dedupeKey = RedisKeyConstants.websocketMessageDedupeKey(userUid, clientMessageId);
+        String messageId = redisTemplate.opsForValue().get(dedupeKey);
+        if (!StringUtils.hasText(messageId)) {
+            return null;
+        }
+        ImMessageEntity existingMessage = messageMapper.selectOne(new LambdaQueryWrapper<ImMessageEntity>()
+            .eq(ImMessageEntity::getMessageId, messageId)
+            .eq(ImMessageEntity::getDeleted, Boolean.FALSE)
+            .last("limit 1"));
+        return existingMessage == null ? null : toMessageItem(existingMessage, clientMessageId);
+    }
+
+    private void cacheMessageDedupe(String userUid, String clientMessageId, String messageId) {
+        if (!StringUtils.hasText(clientMessageId) || !StringUtils.hasText(messageId)) {
+            return;
+        }
+        ValueOperations<String, String> valueOperations = redisTemplate.opsForValue();
+        valueOperations.set(
+            RedisKeyConstants.websocketMessageDedupeKey(userUid, clientMessageId),
+            messageId,
+            MESSAGE_DEDUPE_TTL_HOURS,
+            TimeUnit.HOURS
+        );
+    }
+
     private int normalizePageSize(Integer pageSize) {
         if (pageSize == null || pageSize <= 0) {
             return DEFAULT_PAGE_SIZE;
+        }
+        return Math.min(pageSize, MAX_PAGE_SIZE);
+    }
+
+    private int normalizeSyncPageSize(Integer pageSize) {
+        if (pageSize == null || pageSize <= 0) {
+            return DEFAULT_SYNC_PAGE_SIZE;
         }
         return Math.min(pageSize, MAX_PAGE_SIZE);
     }

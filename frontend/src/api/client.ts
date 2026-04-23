@@ -11,7 +11,7 @@ export {
 } from "./auth";
 export { listContacts, addContact, listRecentContacts, searchContacts, searchUsers } from "./contact";
 export { listConversations, createSingleConversation, clearConversationUnread } from "./conversation";
-export { listMessageHistory, sendMessage, markMessagesRead } from "./message";
+export { listMessageHistory, sendMessage, syncMessages, markMessagesRead } from "./message";
 export { uploadFile } from "./file";
 export { fetchTodayFortune, fetchDisguiseConfig, getTodayFortune, getDisguiseConfig, verifyLuckyNumber } from "./system";
 export { createChatWebSocket } from "./realtime";

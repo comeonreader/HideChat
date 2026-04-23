@@ -4,6 +4,7 @@ com/hidechat/modules/message/MessageServiceImplTest.class
 com/hidechat/modules/system/SystemServiceImplTest.class
 com/hidechat/modules/contact/package-info.class
 com/hidechat/modules/conversation/ConversationServiceImplTest.class
+com/hidechat/security/SecurityConfigTest.class
 com/hidechat/modules/system/SystemControllerTest.class
 com/hidechat/integration/IntegrationContainers.class
 com/hidechat/integration/FileUploadIntegrationTest.class
@@ -11,7 +12,6 @@ com/hidechat/modules/file/FileControllerTest.class
 com/hidechat/modules/user/package-info.class
 com/hidechat/modules/file/package-info.class
 com/hidechat/modules/conversation/package-info.class
-com/hidechat/websocket/ChatWebSocketHandlerTest.class
 com/hidechat/modules/file/FileServiceImplTest.class
 com/hidechat/integration/MessageSecurityIntegrationTest.class
 com/hidechat/integration/UserProfileIntegrationTest.class
@@ -25,6 +25,7 @@ com/hidechat/modules/contact/ContactServiceImplTest.class
 com/hidechat/modules/user/UserServiceImplTest.class
 com/hidechat/integration/AbstractIntegrationTest.class
 com/hidechat/modules/message/MessageControllerTest.class
+com/hidechat/security/jwt/JwtTokenProviderTest.class
 com/hidechat/modules/auth/AuthServiceImplTest.class
 com/hidechat/modules/auth/AuthControllerTest.class
 com/hidechat/HideChatApplicationTests.class
