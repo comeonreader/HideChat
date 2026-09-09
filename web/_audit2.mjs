@@ -1,0 +1,41 @@
+import puppeteer from 'puppeteer-core'
+const BASE = 'http://127.0.0.1:5173'
+const EXE = '/home/reader/HideChat/.e2e/chrome-headless-shell-linux64/chrome-headless-shell'
+const sleep = (ms) => new Promise(r => setTimeout(r, ms))
+const stamp = Date.now().toString(36)
+const browser = await puppeteer.launch({ executablePath: EXE, headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu'] })
+const page = await browser.newPage()
+await page.setViewport({ width: 1180, height: 820 })
+await page.goto(BASE, { waitUntil: 'networkidle0' })
+await page.evaluate(() => { document.querySelectorAll('.tabs button')[1].click() })
+await page.type('.field input[placeholder*="3-20"]', 'fx_' + stamp)
+await page.type('.field input[placeholder="选填，默认同用户名"]', '修复复查')
+const pwds = await page.$$('.field input[type="password"]')
+await pwds[0].type('secret123'); await pwds[1].type('secret123')
+await page.click('button.submit')
+await page.waitForFunction(() => document.body.innerText.includes('通讯录'), { timeout: 12000 })
+await page.evaluate(() => { const b = Array.from(document.querySelectorAll('button')).find(e => e.textContent.trim() === '我'); if (b) b.click() })
+await sleep(500)
+const input = await page.$('.me input[type="file"]')
+await input.uploadFile('/tmp/shots/av.png')
+await sleep(1000)
+await page.evaluate(() => { const el = Array.from(document.querySelectorAll('.crop-btns button')).find(b => b.textContent.includes('使用')); if (el) el.click() })
+await sleep(2500)
+const audit = await page.evaluate(() => {
+  const avs = Array.from(document.querySelectorAll('.avatar')).map(a => {
+    const r = a.getBoundingClientRect()
+    const img = a.querySelector('img')
+    return { w: Math.round(r.width), h: Math.round(r.height), img: img ? (img.complete && img.naturalWidth > 0) : null }
+  })
+  const pl = document.querySelector('.pl-logo')
+  const overflow = avs.filter(a => a.w > 200 || a.h > 200)
+  const bad = avs.filter(a => a.img === false)
+  return { avatars: avs, overflow, bad, plTag: pl ? pl.tagName : null, plSrc: pl ? pl.getAttribute('src') : null }
+})
+console.log('AUDIT=' + JSON.stringify(audit))
+if (audit.overflow.length) throw new Error('仍有超大头像: ' + JSON.stringify(audit.overflow))
+if (audit.bad.length) throw new Error('头像图片加载失败: ' + JSON.stringify(audit.bad))
+if (!(audit.plTag === 'IMG' && audit.plSrc === '/icon.svg')) throw new Error('占位区图标未替换')
+console.log('[AUDIT_OK] 头像尺寸: ' + audit.avatars.map(a => a.w + 'x' + a.h + (a.img ? '✓' : '✗')).join(', '))
+await browser.close()
+process.exit(0)

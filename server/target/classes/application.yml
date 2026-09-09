@@ -1,0 +1,52 @@
+server:
+  port: ${APP_PORT:8080}
+
+spring:
+  application:
+    name: hidechat
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://127.0.0.1:5434/hidechat}
+    username: ${SPRING_DATASOURCE_USERNAME:hidechat}
+    password: ${SPRING_DATASOURCE_PASSWORD:hidechat}
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 210MB
+  jackson:
+    default-property-inclusion: non_null
+
+app:
+  jwt-secret: ${JWT_SECRET:dev-only-change-me-0123456789abcdef0123456789abcdef0123456789abcdef}
+  jwt-days: ${JWT_DAYS:30}
+  msg-ttl-minutes: ${MSG_TTL_MINUTES:20}
+  recall-window-minutes: ${RECALL_WINDOW_MINUTES:2}
+  unread-max-days: ${UNREAD_MAX_DAYS:30}
+  sweep-interval-ms: ${SWEEP_INTERVAL_MS:30000}
+  upload-dir: ${UPLOAD_DIR:/tmp/hidechat-uploads}
+  avatar-dir: ${AVATAR_DIR:/tmp/hidechat-avatars}
+  media:
+    max-image-mb: ${MAX_IMAGE_MB:20}
+    max-video-mb: ${MAX_VIDEO_MB:200}
+    max-voice-mb: ${MAX_VOICE_MB:5}
+    max-avatar-mb: ${MAX_AVATAR_MB:2}
+    max-text-chars: ${MAX_TEXT_CHARS:2000}
+  cors:
+    allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:*}
+  rate:
+    register-limit: ${REGISTER_RATE_LIMIT:10}
+    register-window-minutes: ${REGISTER_RATE_WINDOW_MINUTES:60}
+    login-attempts: ${LOGIN_MAX_ATTEMPTS:5}
+    login-window-minutes: ${LOGIN_WINDOW_MINUTES:15}
+
+logging:
+  level:
+    com.hidechat: INFO

@@ -1,0 +1,24 @@
+:root {
+  --wx-green: #07c160;
+  --wx-bg: #ededed;
+  --wx-header: #ededed;
+  --wx-fg: #191919;
+  --wx-gray: #999999;
+  --wx-light: #f7f7f7;
+  --danger: #fa5151;
+  --radius: 8px;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body, #app { height: 100%; margin: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  color: var(--wx-fg);
+  background: #e5e5e5;
+  overscroll-behavior: none;
+}
+button { font-family: inherit; cursor: pointer; border: none; background: none; padding: 0; }
+input, textarea { font-family: inherit; outline: none; border: none; background: transparent; }
+.hidden { display: none !important; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: #c8c8c8; border-radius: 3px; }
